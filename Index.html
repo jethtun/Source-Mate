@@ -19,11 +19,15 @@
     let state = {
       visits: JSON.parse(localStorage.getItem('visits') || '[]'),
       items: JSON.parse(localStorage.getItem('items') || '[]'),
-      settings: JSON.parse(localStorage.getItem('settings') || '{"defaultAgentCommission":5,"exchangeRate":4.8,"agentName":"","agentEmail":"","agentWechat":"","agentPhone":""}'),
+      settings: JSON.parse(localStorage.getItem('settings') || '{"defaultAgentCommission":5,"exchangeRate":4.8,"agentName":"","agentEmail":"","agentWechat":"","agentPhone":"","categories":["Household & Cleaning","Kitchen & Dining","Personal Care & Beauty","Health & Wellness","Baby & Kids","Pet Supplies","Stationery & Office","Electronics & Accessories","Home Decor & Textiles","Storage & Organization","Seasonal & Party Supplies","Tools & Hardware","Automotive & Garden"]}'),
       currentVisit: null,
+      currentEditItem: null,
+      negotiationPhoto: null,
+      negotiationNotes: '',
       view: 'home',
-      formData: { photo: null, factoryPrice: '', moq: '1', description: '' },
-      supplierForm: { name: '', wechat: '', email: '', address: '', cardImage: null, agentCommission: '' }
+      homeTab: 'recent',
+      formData: { photo: null, factoryPrice: '', moq: '1', description: '', modelNumber: '', color: '', material: '', category: '' },
+      supplierForm: { name: '', wechat: '', email: '', address: '', cardImage: null, agentCommission: '', boothNumber: '', tradeFair: '', contact: '', phone: '' }
     };
 
     function saveState() {
@@ -83,7 +87,8 @@
                           <div class="flex justify-between">
                             <div>
                               <h3 class="font-semibold">${visit.name}</h3>
-                              <p class="text-sm text-gray-600">${visit.wechat || ''}</p>
+                              ${visit.boothNumber ? `<p class="text-xs text-blue-600 font-semibold">📍 Booth ${visit.boothNumber}</p>` : ''}
+                              <p class="text-sm text-gray-600">${visit.wechat || visit.contact || ''}</p>
                             </div>
                             <div class="text-right">
                               <div class="text-sm text-gray-500">${items.length} items</div>
@@ -152,6 +157,23 @@
                   <p class="text-xs text-gray-500 mt-1">Current: ¥${state.settings.exchangeRate} = A$1.00</p>
                 </div>
                 
+                <div class="border-t pt-4">
+                  <h3 class="font-semibold text-lg mb-4">Product Categories</h3>
+                  <div class="space-y-2 mb-3">
+                    ${state.settings.categories.map((cat, idx) => `
+                      <div class="flex justify-between items-center p-2 bg-gray-50 rounded">
+                        <span>${cat}</span>
+                        <button onclick="removeCategory(${idx})" class="text-red-600 text-sm">Remove</button>
+                      </div>
+                    `).join('')}
+                  </div>
+                  <div class="flex gap-2">
+                    <input type="text" id="newCategory" placeholder="Add new category" 
+                      class="flex-1 border rounded-lg p-2">
+                    <button onclick="addCategory()" class="bg-blue-600 text-white px-4 rounded-lg">Add</button>
+                  </div>
+                </div>
+                
                 <div class="pt-4 border-t">
                   <h3 class="font-semibold mb-2">Storage Info</h3>
                   <p class="text-sm">Total: ${getStorageSize()}KB</p>
@@ -178,19 +200,34 @@
                     class="w-full border-2 border-dashed rounded-lg p-8">
                     ${state.supplierForm.cardImage ? 
                       `<img src="${state.supplierForm.cardImage}" class="w-full h-32 object-cover rounded">` :
-                      '<div class="text-center"><div class="text-4xl">📇</div><p>Scan Business Card</p></div>'
+                      '<div class="text-center"><div class="text-4xl">📇</div><p>Scan Business Card</p><p class="text-xs text-gray-500 mt-2">Note: Auto-fill from business card is not yet available. Manual entry required.</p></div>'
                     }
                   </button>
                   <input type="file" id="cardPhoto" accept="image/*" capture="environment" 
                     onchange="handleCardPhoto(event)" class="hidden">
                 </div>
-                <input type="text" id="supplierName" placeholder="Supplier Name *" 
+                
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <h3 class="font-semibold text-sm mb-2 text-blue-900">📍 Trade Show Information</h3>
+                  <div class="space-y-2">
+                    <input type="text" id="tradeFair" placeholder="Trade Fair Name (e.g., Canton Fair)" 
+                      class="w-full border rounded-lg p-2 text-base">
+                    <input type="text" id="boothNumber" placeholder="Booth Number * (e.g., 5.2A-123)" 
+                      class="w-full border rounded-lg p-2 text-base">
+                  </div>
+                </div>
+                
+                <input type="text" id="supplierName" placeholder="Company Name *" 
+                  class="w-full border rounded-lg p-3 text-lg">
+                <input type="text" id="supplierContact" placeholder="Contact Person Name" 
+                  class="w-full border rounded-lg p-3 text-lg">
+                <input type="tel" id="supplierPhone" placeholder="Phone Number" 
                   class="w-full border rounded-lg p-3 text-lg">
                 <input type="text" id="supplierWechat" placeholder="WeChat ID" 
                   class="w-full border rounded-lg p-3 text-lg">
                 <input type="email" id="supplierEmail" placeholder="Email" 
                   class="w-full border rounded-lg p-3 text-lg">
-                <input type="text" id="supplierAddress" placeholder="Address" 
+                <input type="text" id="supplierAddress" placeholder="Factory Address" 
                   class="w-full border rounded-lg p-3 text-lg">
                 <input type="number" step="0.1" id="supplierCommission" placeholder="Commission % (default: ${state.settings.defaultAgentCommission}%)" 
                   class="w-full border rounded-lg p-3 text-lg">
@@ -235,6 +272,26 @@
                   </button>
                   <input type="file" id="productPhoto" accept="image/*" capture="environment" 
                     onchange="handleProductPhoto(event)" class="hidden">
+                </div>
+                
+                <div class="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                  <h3 class="font-semibold text-sm mb-2 text-purple-900">🏷️ Product Information</h3>
+                  <div class="space-y-2">
+                    <select id="category" class="w-full border rounded-lg p-2 text-base">
+                      <option value="">Select Category</option>
+                      ${state.settings.categories.map(cat => 
+                        `<option value="${cat}" ${state.formData.category === cat ? 'selected' : ''}>${cat}</option>`
+                      ).join('')}
+                    </select>
+                    <input type="text" id="modelNumber" placeholder="Model/Item Code (e.g., XYZ-2024)" 
+                      value="${state.formData.modelNumber}" class="w-full border rounded-lg p-2 text-base">
+                    <div class="grid grid-cols-2 gap-2">
+                      <input type="text" id="color" placeholder="Color" 
+                        value="${state.formData.color}" class="border rounded-lg p-2 text-base">
+                      <input type="text" id="material" placeholder="Material" 
+                        value="${state.formData.material}" class="border rounded-lg p-2 text-base">
+                    </div>
+                  </div>
                 </div>
                 
                 <div>
@@ -312,7 +369,8 @@
             <div class="bg-blue-600 text-white p-4">
               <button onclick="changeView('home')" class="text-2xl mb-2">←</button>
               <h1 class="text-xl font-bold">${state.currentVisit.name}</h1>
-              <p class="text-sm opacity-90">${state.currentVisit.wechat || ''}</p>
+              ${state.currentVisit.boothNumber ? `<p class="text-sm opacity-90">📍 Booth ${state.currentVisit.boothNumber}</p>` : ''}
+              <p class="text-sm opacity-90">${state.currentVisit.wechat || state.currentVisit.contact || ''}</p>
             </div>
             <div class="p-4">
               <button onclick="changeView('addProduct')" class="w-full bg-green-600 text-white p-4 rounded-lg mb-4 font-semibold">
@@ -424,7 +482,15 @@
               <div class="bg-white rounded-lg shadow p-4">
                 <h3 class="font-bold mb-3">Supplier Details</h3>
                 <div class="space-y-2 text-sm">
-                  <div><span class="text-gray-600">Name:</span> <span class="font-semibold">${state.currentVisit.name}</span></div>
+                  <div class="bg-blue-50 rounded p-2">
+                    <span class="text-gray-600">Trade Fair:</span> <span class="font-semibold">${state.currentVisit.tradeFair || 'N/A'}</span>
+                  </div>
+                  <div class="bg-blue-50 rounded p-2">
+                    <span class="text-gray-600">Booth:</span> <span class="font-semibold text-lg">${state.currentVisit.boothNumber}</span>
+                  </div>
+                  <div><span class="text-gray-600">Company:</span> <span class="font-semibold">${state.currentVisit.name}</span></div>
+                  <div><span class="text-gray-600">Contact:</span> ${state.currentVisit.contact || 'N/A'}</div>
+                  <div><span class="text-gray-600">Phone:</span> ${state.currentVisit.phone || 'N/A'}</div>
                   <div><span class="text-gray-600">WeChat:</span> ${state.currentVisit.wechat || 'N/A'}</div>
                   <div><span class="text-gray-600">Email:</span> ${state.currentVisit.email || 'N/A'}</div>
                   <div><span class="text-gray-600">Address:</span> ${state.currentVisit.address || 'N/A'}</div>
@@ -488,21 +554,141 @@
               </div>
               
               <!-- Action Buttons -->
-              <div class="grid grid-cols-2 gap-3">
-                <button onclick="changeView('visitDetail')" class="bg-gray-500 text-white p-4 rounded-lg font-semibold">
-                  ← Back
+              <div class="space-y-3">
+                <button onclick="sendPO()" class="w-full bg-blue-600 text-white p-4 rounded-lg font-semibold">
+                  ✉️ Send Email to Agent
                 </button>
-                <button onclick="sendPO()" class="bg-blue-600 text-white p-4 rounded-lg font-semibold">
-                  ✉️ Send to Agent
+                <button onclick="exportForWeChat()" class="w-full bg-green-600 text-white p-4 rounded-lg font-semibold">
+                  💬 Export for WeChat
+                </button>
+                <button onclick="changeView('visitDetail')" class="w-full bg-gray-500 text-white p-3 rounded-lg font-semibold">
+                  ← Back
                 </button>
               </div>
             </div>
           </div>
         `;
       }
+      
+      else if (state.view === 'wechatExport') {
+        const exportData = JSON.parse(localStorage.getItem('wechat_export'));
+        if (!exportData) {
+          state.view = 'home';
+          render();
+          return;
+        }
+        
+        app.innerHTML = `
+          <div class="min-h-screen bg-gradient-to-b from-green-50 to-white">
+            <div class="bg-green-600 text-white p-4">
+              <button onclick="changeView('visitDetail')" class="text-2xl mb-2">←</button>
+              <h1 class="text-xl font-bold">💬 WeChat Export Ready</h1>
+              <p class="text-sm opacity-90">Send PO to Agent via WeChat</p>
+            </div>
+            
+            <div class="p-4 space-y-4">
+              <!-- Step 1: Copy PO Text -->
+              <div class="bg-white rounded-lg shadow-lg p-4 border-2 border-green-300">
+                <div class="flex items-center gap-2 mb-3">
+                  <div class="w-8 h-8 bg-green-600 text-white rounded-full flex items-center justify-center font-bold">1</div>
+                  <h3 class="font-bold text-lg">Copy PO Text</h3>
+                </div>
+                <div class="bg-gray-50 rounded p-3 mb-3 text-xs font-mono max-h-32 overflow-y-auto">
+                  ${exportData.poText.split('\n').slice(0, 5).join('\n')}
+                  <div class="text-gray-500 mt-2">... (${exportData.poText.split('\n').length} lines total)</div>
+                </div>
+                <button onclick="copyPOText()" class="w-full bg-green-600 text-white p-3 rounded-lg font-semibold">
+                  📋 Copy PO Text
+                </button>
+                <p class="text-xs text-gray-600 mt-2">After copying: Paste into WeChat message to agent</p>
+              </div>
+              
+              <!-- Step 2: Download Photos -->
+              <div class="bg-white rounded-lg shadow-lg p-4 border-2 border-blue-300">
+                <div class="flex items-center gap-2 mb-3">
+                  <div class="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold">2</div>
+                  <h3 class="font-bold text-lg">Send Product Photos (${exportData.images.length})</h3>
+                </div>
+                
+                <button onclick="downloadAllImages()" class="w-full bg-blue-600 text-white p-3 rounded-lg font-semibold mb-3">
+                  📥 Download All ${exportData.images.length} Photos
+                </button>
+                
+                <div class="text-sm text-gray-600 mb-3">Or download individually:</div>
+                <div class="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
+                  ${exportData.images.map((img, idx) => `
+                    <div class="border rounded-lg p-2">
+                      <img src="${img.photo}" class="w-full h-24 object-cover rounded mb-2">
+                      ${img.modelNumber ? `<div class="text-xs font-mono text-purple-600 mb-1">${img.modelNumber}</div>` : ''}
+                      <button onclick="downloadImage(${idx})" class="w-full bg-gray-200 text-gray-700 py-2 rounded text-xs font-semibold">
+                        📥 Photo ${idx + 1}
+                      </button>
+                    </div>
+                  `).join('')}
+                </div>
+                <p class="text-xs text-gray-600 mt-2">After download: Share photos to WeChat from Downloads folder</p>
+              </div>
+              
+              ${exportData.negotiation ? `
+                <!-- Step 3: Negotiation Photo -->
+                <div class="bg-white rounded-lg shadow-lg p-4 border-2 border-yellow-300">
+                  <div class="flex items-center gap-2 mb-3">
+                    <div class="w-8 h-8 bg-yellow-600 text-white rounded-full flex items-center justify-center font-bold">3</div>
+                    <h3 class="font-bold text-lg">Price Negotiation</h3>
+                  </div>
+                  <img src="${exportData.negotiation.photo}" class="w-full h-32 object-cover rounded mb-2">
+                  ${exportData.negotiation.notes ? `
+                    <div class="bg-yellow-50 rounded p-2 mb-2 text-sm">
+                      <strong>Notes:</strong> ${exportData.negotiation.notes}
+                    </div>
+                  ` : ''}
+                  <button onclick="downloadNegotiation()" class="w-full bg-yellow-600 text-white p-3 rounded-lg font-semibold">
+                    📥 Download Negotiation Photo
+                  </button>
+                </div>
+              ` : ''}
+              
+              <!-- Instructions -->
+              <div class="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-4 border-2 border-purple-300">
+                <h3 class="font-bold mb-2">📱 WeChat Steps:</h3>
+                <ol class="text-sm space-y-2 list-decimal list-inside">
+                  <li>Open WeChat and find your agent: <strong>${exportData.supplier.name}</strong></li>
+                  <li>Click "Copy PO Text" above and paste into message</li>
+                  <li>Download all photos and share to WeChat</li>
+                  ${exportData.negotiation ? '<li>Send negotiation photo with notes</li>' : ''}
+                  <li>Send all messages to agent</li>
+                  <li>Wait for confirmation!</li>
+                </ol>
+              </div>
+              
+              <button onclick="finishWeChatExport()" class="w-full bg-green-600 text-white p-4 rounded-lg font-semibold">
+                ✓ Done - Return to Supplier
+              </button>
+            </div>
+          </div>
+        `;
+      }
     }
 
-    function changeView(view) {
+    function finishWeChatExport() {
+      if (confirm('Mark items as sent to agent?')) {
+        const exportData = JSON.parse(localStorage.getItem('wechat_export'));
+        state.items.forEach(item => {
+          if (item.visitId === state.currentVisit.id && item.status === 'shortlist') {
+            item.status = 'sent';
+            item.sentDate = new Date().toISOString();
+          }
+        });
+        saveState();
+        localStorage.removeItem('wechat_export');
+        state.negotiationPhoto = null;
+        state.negotiationNotes = '';
+      }
+      state.view = 'visitDetail';
+      render();
+    }
+
+    function exportData() {
       state.view = view;
       render();
     }
@@ -560,11 +746,18 @@
 
     function saveSupplier(addItems) {
       const name = document.getElementById('supplierName').value;
-      if (!name) return alert('Please enter supplier name');
+      const boothNumber = document.getElementById('boothNumber').value;
+      
+      if (!name) return alert('Please enter company name');
+      if (!boothNumber) return alert('Please enter booth number');
       
       const visit = {
         id: Date.now(),
         name: name,
+        boothNumber: boothNumber,
+        tradeFair: document.getElementById('tradeFair').value,
+        contact: document.getElementById('supplierContact').value,
+        phone: document.getElementById('supplierPhone').value,
         wechat: document.getElementById('supplierWechat').value,
         email: document.getElementById('supplierEmail').value,
         address: document.getElementById('supplierAddress').value,
@@ -575,7 +768,7 @@
       
       state.visits.push(visit);
       state.currentVisit = visit;
-      state.supplierForm = { name: '', wechat: '', email: '', address: '', cardImage: null, agentCommission: '' };
+      state.supplierForm = { name: '', wechat: '', email: '', address: '', cardImage: null, agentCommission: '', boothNumber: '', tradeFair: '', contact: '', phone: '' };
       saveState();
       
       if (addItems) {
@@ -634,6 +827,65 @@
       }
     }
 
+    function editProduct(id) {
+      const item = state.items.find(i => i.id === id);
+      if (item) {
+        state.currentEditItem = item;
+        state.formData = {
+          photo: item.photo,
+          factoryPrice: item.factoryPrice.toString(),
+          moq: item.moq.toString(),
+          description: item.description,
+          modelNumber: item.modelNumber || '',
+          color: item.color || '',
+          material: item.material || ''
+        };
+        state.view = 'editProduct';
+        render();
+      }
+    }
+
+    function updateProduct() {
+      const factoryPrice = document.getElementById('factoryPrice').value;
+      
+      if (!state.formData.photo || !factoryPrice) {
+        return alert('Please fill in photo and factory price');
+      }
+      
+      state.currentEditItem.photo = state.formData.photo;
+      state.currentEditItem.category = document.getElementById('category')?.value || '';
+      state.currentEditItem.modelNumber = document.getElementById('modelNumber')?.value || '';
+      state.currentEditItem.color = document.getElementById('color')?.value || '';
+      state.currentEditItem.material = document.getElementById('material')?.value || '';
+      state.currentEditItem.factoryPrice = parseFloat(factoryPrice);
+      state.currentEditItem.moq = parseInt(document.getElementById('moq').value) || 1;
+      state.currentEditItem.description = document.getElementById('description').value;
+      
+      saveState();
+      state.formData = { photo: null, factoryPrice: '', moq: '1', description: '', modelNumber: '', color: '', material: '', category: '' };
+      state.currentEditItem = null;
+      state.view = 'visitDetail';
+      render();
+    }
+
+    function toggleNegotiation() {
+      document.getElementById('negotiationPhoto').click();
+    }
+
+    async function handleNegotiationPhoto(e) {
+      const file = e.target.files[0];
+      if (file) {
+        state.negotiationPhoto = await compressImage(file, 800, 0.7);
+        render();
+      }
+    }
+
+    function removeNegotiation() {
+      state.negotiationPhoto = null;
+      state.negotiationNotes = '';
+      render();
+    }
+
     function saveProduct(addNext) {
       const factoryPrice = document.getElementById('factoryPrice').value;
       
@@ -645,6 +897,10 @@
         id: Date.now(),
         visitId: state.currentVisit.id,
         photo: state.formData.photo,
+        category: document.getElementById('category')?.value || '',
+        modelNumber: document.getElementById('modelNumber')?.value || '',
+        color: document.getElementById('color')?.value || '',
+        material: document.getElementById('material')?.value || '',
         factoryPrice: parseFloat(factoryPrice),
         moq: parseInt(document.getElementById('moq').value) || 1,
         description: document.getElementById('description').value,
@@ -656,11 +912,11 @@
       saveState();
       
       if (addNext) {
-        state.formData = { photo: null, factoryPrice: '', moq: '1', description: '' };
+        state.formData = { photo: null, factoryPrice: '', moq: '1', description: '', modelNumber: '', color: '', material: '', category: '' };
         render();
         setTimeout(() => document.getElementById('productPhoto').click(), 100);
       } else {
-        state.formData = { photo: null, factoryPrice: '', moq: '1', description: '' };
+        state.formData = { photo: null, factoryPrice: '', moq: '1', description: '', modelNumber: '', color: '', material: '', category: '' };
         state.view = 'visitDetail';
         render();
       }
@@ -720,7 +976,11 @@
 SUPPLIER INFORMATION
 ══════════════════════════════════════
 Company: ${state.currentVisit.name}
-Contact: ${state.currentVisit.wechat || 'N/A'}
+${state.currentVisit.tradeFair ? 'Trade Fair: ' + state.currentVisit.tradeFair : ''}
+Booth Number: ${state.currentVisit.boothNumber}
+Contact Person: ${state.currentVisit.contact || 'N/A'}
+Phone: ${state.currentVisit.phone || 'N/A'}
+WeChat: ${state.currentVisit.wechat || 'N/A'}
 Email: ${state.currentVisit.email || 'N/A'}
 Address: ${state.currentVisit.address || 'N/A'}
 
@@ -783,7 +1043,150 @@ Please process this order and confirm timeline.`;
       reviewShortlist();
     }
 
-    function exportData() {
+    function exportForWeChat() {
+      const shortlisted = state.items.filter(i => i.visitId === state.currentVisit.id && i.status === 'shortlist');
+      
+      if (shortlisted.length === 0) {
+        alert('No items shortlisted. Please shortlist items first.');
+        return;
+      }
+      
+      const totalRMB = shortlisted.reduce((sum, i) => sum + (i.factoryPrice * (i.moq || 1)), 0);
+      const commission = state.currentVisit?.agentCommission || state.settings.defaultAgentCommission;
+      const commissionAmount = totalRMB * (commission / 100);
+      const grandTotal = totalRMB + commissionAmount;
+      
+      // Create PO text for WeChat
+      const poText = `📋 PURCHASE ORDER REQUEST
+
+━━━━━━━━━━━━━━━━━━━━━━
+🏢 SUPPLIER
+━━━━━━━━━━━━━━━━━━━━━━
+${state.currentVisit.name}
+📱 ${state.currentVisit.wechat || 'N/A'}
+📧 ${state.currentVisit.email || 'N/A'}
+📍 ${state.currentVisit.address || 'N/A'}
+
+━━━━━━━━━━━━━━━━━━━━━━
+🛍️ ORDER (${shortlisted.length} items)
+━━━━━━━━━━━━━━━━━━━━━━
+${shortlisted.map((item, idx) => {
+  const total = item.factoryPrice * (item.moq || 1);
+  return `${idx + 1}. ¥${item.factoryPrice.toFixed(2)} × ${item.moq} = ¥${total.toFixed(2)} (A\${convertToAUD(total)})
+${item.description ? '   📝 ' + item.description : ''}`;
+}).join('\n\n')}
+
+━━━━━━━━━━━━━━━━━━━━━━
+💰 SUMMARY
+━━━━━━━━━━━━━━━━━━━━━━
+Subtotal: ¥${totalRMB.toFixed(2)}
+Commission (${commission}%): ¥${commissionAmount.toFixed(2)}
+──────────────────────
+TOTAL: ¥${grandTotal.toFixed(2)}
+       A\${convertToAUD(grandTotal)}
+
+━━━━━━━━━━━━━━━━━━━━━━
+👤 AGENT
+━━━━━━━━━━━━━━━━━━━━━━
+${state.settings.agentName}
+📧 ${state.settings.agentEmail}
+📱 ${state.settings.agentWechat}
+☎️ ${state.settings.agentPhone}
+
+━━━━━━━━━━━━━━━━━━━━━━
+Exchange: ¥${state.settings.exchangeRate} = A\$1
+Generated: ${new Date().toLocaleString()}
+
+📸 ${shortlisted.length} product photos will be sent separately`;
+
+      // Create a package with PO text and prepare images
+      const exportPackage = {
+        poText: poText,
+        images: shortlisted.map((item, idx) => ({
+          id: idx + 1,
+          photo: item.photo,
+          modelNumber: item.modelNumber,
+          price: item.factoryPrice,
+          moq: item.moq,
+          color: item.color,
+          material: item.material,
+          description: item.description
+        })),
+        negotiation: state.negotiationPhoto ? {
+          photo: state.negotiationPhoto,
+          notes: state.negotiationNotes
+        } : null,
+        supplier: state.currentVisit,
+        date: new Date().toISOString()
+      };
+
+      // Save to localStorage for retrieval
+      localStorage.setItem('wechat_export', JSON.stringify(exportPackage));
+      
+      // Show instructions
+      state.view = 'wechatExport';
+      render();
+    }
+
+    function copyPOText() {
+      const exportData = JSON.parse(localStorage.getItem('wechat_export'));
+      if (!exportData) return;
+      
+      // Copy to clipboard
+      navigator.clipboard.writeText(exportData.poText).then(() => {
+        alert('✓ PO text copied to clipboard!\n\nNow:\n1. Open WeChat\n2. Paste the text\n3. Return here to get photos');
+      }).catch(() => {
+        // Fallback for older browsers
+        const textarea = document.createElement('textarea');
+        textarea.value = exportData.poText;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        alert('✓ PO text copied!\n\nPaste into WeChat, then return for photos.');
+      });
+    }
+
+    function downloadImage(index) {
+      const exportData = JSON.parse(localStorage.getItem('wechat_export'));
+      if (!exportData || !exportData.images[index]) return;
+      
+      const img = exportData.images[index];
+      const link = document.createElement('a');
+      link.href = img.photo;
+      link.download = `product-${index + 1}-${Date.now()}.jpg`;
+      link.click();
+      
+      alert(`Photo ${index + 1} downloaded!\n\nLong-press the downloaded image and select "Share to WeChat"`);
+    }
+
+    function downloadAllImages() {
+      const exportData = JSON.parse(localStorage.getItem('wechat_export'));
+      if (!exportData) return;
+      
+      exportData.images.forEach((img, idx) => {
+        setTimeout(() => {
+          const link = document.createElement('a');
+          link.href = img.photo;
+          link.download = `product-${idx + 1}-${Date.now()}.jpg`;
+          link.click();
+        }, idx * 500); // Stagger downloads
+      });
+      
+      alert(`Downloading ${exportData.images.length} photos...\n\nAfter download:\n1. Go to Downloads folder\n2. Select all photos\n3. Share to WeChat`);
+    }
+
+    function downloadNegotiation() {
+      const exportData = JSON.parse(localStorage.getItem('wechat_export'));
+      if (!exportData || !exportData.negotiation) return;
+      
+      const link = document.createElement('a');
+      link.href = exportData.negotiation.photo;
+      link.download = `negotiation-${Date.now()}.jpg`;
+      link.click();
+      
+      alert('Negotiation photo downloaded!\n\nShare to WeChat with notes:\n' + exportData.negotiation.notes);
+    }
       const data = { visits: state.visits, items: state.items, settings: state.settings, exportDate: new Date().toISOString() };
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
