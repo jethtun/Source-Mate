@@ -19,14 +19,13 @@
     let state = {
       visits: JSON.parse(localStorage.getItem('visits') || '[]'),
       items: JSON.parse(localStorage.getItem('items') || '[]'),
-      settings: JSON.parse(localStorage.getItem('settings') || '{"defaultAgentCommission":5,"exchangeRate":4.8,"agentName":"","agentEmail":"","agentWechat":"","agentPhone":"","categories":["Household & Cleaning","Kitchen & Dining","Personal Care & Beauty","Health & Wellness","Baby & Kids","Pet Supplies","Stationery & Office","Electronics & Accessories","Home Decor & Textiles","Storage & Organization","Seasonal & Party Supplies","Tools & Hardware","Automotive & Garden"]}'),
+      settings: JSON.parse(localStorage.getItem('settings') || '{"defaultAgentCommission":5,"exchangeRate":4.8,"agentName":"","agentEmail":"","agentWechat":"","agentPhone":""}'),
       currentVisit: null,
       currentEditItem: null,
       negotiationPhoto: null,
       negotiationNotes: '',
       view: 'home',
-      homeTab: 'recent',
-      formData: { photo: null, factoryPrice: '', moq: '1', description: '', modelNumber: '', color: '', material: '', category: '' },
+      formData: { photo: null, factoryPrice: '', moq: '1', description: '', modelNumber: '', color: '', material: '' },
       supplierForm: { name: '', wechat: '', email: '', address: '', cardImage: null, agentCommission: '', boothNumber: '', tradeFair: '', contact: '', phone: '' }
     };
 
