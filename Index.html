@@ -16,14 +16,13 @@
   <div id="app"></div>
   
   <script>
-    // Simple vanilla JS implementation
     let state = {
       visits: JSON.parse(localStorage.getItem('visits') || '[]'),
       items: JSON.parse(localStorage.getItem('items') || '[]'),
-      settings: JSON.parse(localStorage.getItem('settings') || '{"defaultAgentCommission":15}'),
+      settings: JSON.parse(localStorage.getItem('settings') || '{"defaultAgentCommission":5,"exchangeRate":4.8,"agentName":"","agentEmail":"","agentWechat":"","agentPhone":""}'),
       currentVisit: null,
       view: 'home',
-      formData: { photo: null, wholesalePrice: '', retailPrice: '', moq: '', description: '' },
+      formData: { photo: null, factoryPrice: '', moq: '1', description: '' },
       supplierForm: { name: '', wechat: '', email: '', address: '', cardImage: null, agentCommission: '' }
     };
 
@@ -31,6 +30,15 @@
       localStorage.setItem('visits', JSON.stringify(state.visits));
       localStorage.setItem('items', JSON.stringify(state.items));
       localStorage.setItem('settings', JSON.stringify(state.settings));
+    }
+
+    function convertToAUD(rmb) {
+      return (parseFloat(rmb) / state.settings.exchangeRate).toFixed(2);
+    }
+
+    function calculateLandedCost(factoryPrice) {
+      const commission = state.currentVisit?.agentCommission || state.settings.defaultAgentCommission;
+      return parseFloat(factoryPrice) * (1 + commission / 100);
     }
 
     function render() {
@@ -102,11 +110,48 @@
             </div>
             <div class="p-4">
               <div class="bg-white rounded-lg shadow p-4 space-y-4">
+                <h3 class="font-semibold text-lg">Agent Information</h3>
                 <div>
-                  <label class="block text-sm font-medium mb-2">Default Agent Commission %</label>
-                  <input type="number" id="commissionInput" value="${state.settings.defaultAgentCommission}" 
-                    onchange="updateCommission(this.value)" class="w-full border rounded-lg p-3 text-lg">
+                  <label class="block text-sm font-medium mb-2">Agent Name</label>
+                  <input type="text" id="agentName" value="${state.settings.agentName || ''}" 
+                    onchange="updateSettings()" class="w-full border rounded-lg p-3 text-lg" placeholder="Agent name">
                 </div>
+                <div>
+                  <label class="block text-sm font-medium mb-2">Agent Email</label>
+                  <input type="email" id="agentEmail" value="${state.settings.agentEmail || ''}" 
+                    onchange="updateSettings()" class="w-full border rounded-lg p-3 text-lg" placeholder="agent@email.com">
+                </div>
+                <div>
+                  <label class="block text-sm font-medium mb-2">Agent WeChat ID</label>
+                  <input type="text" id="agentWechat" value="${state.settings.agentWechat || ''}" 
+                    onchange="updateSettings()" class="w-full border rounded-lg p-3 text-lg" placeholder="WeChat ID">
+                </div>
+                <div>
+                  <label class="block text-sm font-medium mb-2">Agent Phone</label>
+                  <input type="tel" id="agentPhone" value="${state.settings.agentPhone || ''}" 
+                    onchange="updateSettings()" class="w-full border rounded-lg p-3 text-lg" placeholder="+86 123 4567 8900">
+                </div>
+                
+                <div class="border-t pt-4">
+                  <h3 class="font-semibold text-lg mb-4">Default Values</h3>
+                  <div>
+                    <label class="block text-sm font-medium mb-2">Default Agent Commission %</label>
+                    <input type="number" step="0.1" id="commissionInput" value="${state.settings.defaultAgentCommission}" 
+                      onchange="updateSettings()" class="w-full border rounded-lg p-3 text-lg">
+                  </div>
+                </div>
+                
+                <div>
+                  <label class="block text-sm font-medium mb-2">Exchange Rate (RMB to AUD)</label>
+                  <div class="flex items-center gap-2">
+                    <span class="text-lg">¥1 =</span>
+                    <input type="number" step="0.01" id="exchangeRate" value="${state.settings.exchangeRate}" 
+                      onchange="updateSettings()" class="flex-1 border rounded-lg p-3 text-lg">
+                    <span class="text-lg">AUD</span>
+                  </div>
+                  <p class="text-xs text-gray-500 mt-1">Current: ¥${state.settings.exchangeRate} = A$1.00</p>
+                </div>
+                
                 <div class="pt-4 border-t">
                   <h3 class="font-semibold mb-2">Storage Info</h3>
                   <p class="text-sm">Total: ${getStorageSize()}KB</p>
@@ -147,11 +192,17 @@
                   class="w-full border rounded-lg p-3 text-lg">
                 <input type="text" id="supplierAddress" placeholder="Address" 
                   class="w-full border rounded-lg p-3 text-lg">
-                <input type="number" id="supplierCommission" placeholder="Commission % (default: ${state.settings.defaultAgentCommission}%)" 
+                <input type="number" step="0.1" id="supplierCommission" placeholder="Commission % (default: ${state.settings.defaultAgentCommission}%)" 
                   class="w-full border rounded-lg p-3 text-lg">
-                <button onclick="saveSupplier()" class="w-full bg-blue-600 text-white p-4 rounded-lg font-semibold">
-                  Save Supplier
-                </button>
+                
+                <div class="flex gap-2">
+                  <button onclick="saveSupplier(false)" class="flex-1 bg-blue-600 text-white p-4 rounded-lg font-semibold">
+                    Save
+                  </button>
+                  <button onclick="saveSupplier(true)" class="flex-1 bg-green-600 text-white p-4 rounded-lg font-semibold">
+                    Save & Add Items
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -159,7 +210,13 @@
       }
       
       else if (state.view === 'addProduct') {
-        const margin = calculateMargin(state.formData.wholesalePrice, state.formData.retailPrice);
+        const factoryPrice = parseFloat(state.formData.factoryPrice) || 0;
+        const moq = parseInt(state.formData.moq) || 1;
+        const audPrice = factoryPrice > 0 ? convertToAUD(factoryPrice) : '0.00';
+        const landedCost = factoryPrice > 0 ? calculateLandedCost(factoryPrice) : 0;
+        const totalRMB = factoryPrice * moq;
+        const totalAUD = totalRMB > 0 ? convertToAUD(totalRMB) : '0.00';
+        
         app.innerHTML = `
           <div class="min-h-screen bg-gray-100">
             <div class="bg-blue-600 text-white p-4 flex items-center gap-3">
@@ -179,20 +236,57 @@
                   <input type="file" id="productPhoto" accept="image/*" capture="environment" 
                     onchange="handleProductPhoto(event)" class="hidden">
                 </div>
-                <div class="grid grid-cols-2 gap-4">
-                  <input type="number" step="0.01" id="wholesalePrice" placeholder="Factory ¥" 
-                    oninput="updatePrices()" class="border rounded-lg p-3 text-lg" value="${state.formData.wholesalePrice}">
-                  <input type="number" step="0.01" id="retailPrice" placeholder="Retail A$" 
-                    oninput="updatePrices()" class="border rounded-lg p-3 text-lg" value="${state.formData.retailPrice}">
+                
+                <div>
+                  <label class="block text-sm font-medium mb-2">Factory Price (RMB) *</label>
+                  <div class="relative">
+                    <span class="absolute left-3 top-3 text-lg text-gray-500">¥</span>
+                    <input type="number" step="0.01" id="factoryPrice" 
+                      oninput="updateProductPrices()" class="w-full border rounded-lg p-3 pl-8 text-lg" 
+                      placeholder="0.00" value="${state.formData.factoryPrice}">
+                  </div>
+                  ${factoryPrice > 0 ? 
+                    `<div id="priceDisplay" class="mt-2 p-3 bg-blue-50 rounded-lg">
+                      <div class="flex justify-between text-sm">
+                        <span>Retail Price (AUD):</span>
+                        <span class="font-semibold">A${audPrice}</span>
+                      </div>
+                      <div class="flex justify-between text-sm mt-1">
+                        <span>Landed Cost (with ${state.currentVisit?.agentCommission || state.settings.defaultAgentCommission}% commission):</span>
+                        <span class="font-semibold">¥${landedCost.toFixed(2)}</span>
+                      </div>
+                    </div>` : '<div id="priceDisplay"></div>'
+                  }
                 </div>
-                ${state.formData.wholesalePrice && state.formData.retailPrice ? 
-                  `<div class="bg-green-50 border border-green-200 rounded-lg p-4">
-                    <div class="text-sm">Margin</div>
-                    <div class="text-3xl font-bold text-green-600">${margin}%</div>
-                  </div>` : ''
-                }
-                <input type="text" id="moq" placeholder="MOQ" class="w-full border rounded-lg p-3" value="${state.formData.moq}">
-                <textarea id="description" placeholder="Notes" rows="2" class="w-full border rounded-lg p-3">${state.formData.description}</textarea>
+                
+                <div>
+                  <label class="block text-sm font-medium mb-2">MOQ (Minimum Order Quantity)</label>
+                  <input type="number" id="moq" min="1" 
+                    oninput="updateProductPrices()" class="w-full border rounded-lg p-3 text-lg" 
+                    placeholder="1" value="${state.formData.moq}">
+                  ${moq > 1 && factoryPrice > 0 ? 
+                    `<div id="moqDisplay" class="mt-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                      <div class="text-sm text-gray-600 mb-1">Total for ${moq} units:</div>
+                      <div class="flex justify-between items-center">
+                        <div>
+                          <div class="text-lg font-bold text-green-700">¥${totalRMB.toFixed(2)}</div>
+                          <div class="text-sm text-gray-600">RMB</div>
+                        </div>
+                        <div class="text-right">
+                          <div class="text-lg font-bold text-green-700">A${totalAUD}</div>
+                          <div class="text-sm text-gray-600">AUD</div>
+                        </div>
+                      </div>
+                    </div>` : '<div id="moqDisplay"></div>'
+                  }
+                </div>
+                
+                <div>
+                  <label class="block text-sm font-medium mb-2">Notes</label>
+                  <textarea id="description" placeholder="Product notes..." rows="2" 
+                    class="w-full border rounded-lg p-3">${state.formData.description}</textarea>
+                </div>
+                
                 <div class="flex gap-2">
                   <button onclick="saveProduct(true)" class="flex-1 bg-green-600 text-white p-4 rounded-lg font-semibold">
                     Save & Next
@@ -210,8 +304,11 @@
       else if (state.view === 'visitDetail') {
         const items = state.items.filter(i => i.visitId === state.currentVisit.id);
         const shortlisted = items.filter(i => i.status === 'shortlist');
+        const totalShortlistedRMB = shortlisted.reduce((sum, i) => sum + (i.factoryPrice * (i.moq || 1)), 0);
+        const totalShortlistedAUD = convertToAUD(totalShortlistedRMB);
+        
         app.innerHTML = `
-          <div class="min-h-screen bg-gray-100">
+          <div class="min-h-screen bg-gray-100 pb-24">
             <div class="bg-blue-600 text-white p-4">
               <button onclick="changeView('home')" class="text-2xl mb-2">←</button>
               <h1 class="text-xl font-bold">${state.currentVisit.name}</h1>
@@ -221,47 +318,183 @@
               <button onclick="changeView('addProduct')" class="w-full bg-green-600 text-white p-4 rounded-lg mb-4 font-semibold">
                 ➕ Add Product
               </button>
+              
               ${shortlisted.length > 0 ? `
-                <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
-                  <div class="flex justify-between items-center">
-                    <div class="font-semibold text-yellow-800">${shortlisted.length} Shortlisted</div>
-                    <button onclick="sendEmail()" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm">
-                      ✉️ Email
+                <div class="bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-300 rounded-lg p-4 mb-4">
+                  <div class="flex items-center justify-between mb-3">
+                    <div>
+                      <div class="text-lg font-bold text-yellow-900">⭐ ${shortlisted.length} Items Shortlisted</div>
+                      <div class="text-sm text-yellow-700">Ready for Purchase Order</div>
+                    </div>
+                  </div>
+                  <div class="bg-white rounded-lg p-3 mb-3">
+                    <div class="grid grid-cols-2 gap-3">
+                      <div>
+                        <div class="text-xs text-gray-500">Total (RMB)</div>
+                        <div class="text-xl font-bold text-green-600">¥${totalShortlistedRMB.toFixed(2)}</div>
+                      </div>
+                      <div>
+                        <div class="text-xs text-gray-500">Total (AUD)</div>
+                        <div class="text-xl font-bold text-green-600">A${totalShortlistedAUD}</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="grid grid-cols-2 gap-2">
+                    <button onclick="reviewShortlist()" class="bg-yellow-600 text-white px-4 py-3 rounded-lg font-semibold">
+                      📋 Review PO
+                    </button>
+                    <button onclick="sendPO()" class="bg-blue-600 text-white px-4 py-3 rounded-lg font-semibold">
+                      ✉️ Send to Agent
                     </button>
                   </div>
                 </div>
               ` : ''}
+              
               <div class="bg-white rounded-lg shadow p-4">
-                <h2 class="font-bold mb-3">Products (${items.length})</h2>
+                <div class="flex justify-between items-center mb-3">
+                  <h2 class="font-bold">All Products (${items.length})</h2>
+                  ${items.length > 0 && shortlisted.length < items.length ? 
+                    `<button onclick="shortlistAll()" class="text-sm text-blue-600 font-semibold">
+                      Shortlist All
+                    </button>` : ''
+                  }
+                </div>
+                
                 ${items.length === 0 ? 
                   '<p class="text-gray-500 text-center py-8">No products yet!</p>' :
                   `<div class="space-y-3">
-                    ${items.slice().reverse().map(item => `
-                      <div class="border rounded-lg p-3">
+                    ${items.slice().reverse().map(item => {
+                      const audPrice = convertToAUD(item.factoryPrice);
+                      const totalRMB = item.factoryPrice * (item.moq || 1);
+                      const totalAUD = convertToAUD(totalRMB);
+                      const isShortlisted = item.status === 'shortlist';
+                      return `
+                      <div class="border rounded-lg p-3 ${isShortlisted ? 'border-yellow-400 bg-yellow-50' : ''}">
                         <div class="flex gap-3">
                           <img src="${item.photo}" class="w-24 h-24 object-cover rounded">
                           <div class="flex-1">
                             <div class="flex justify-between">
                               <div>
-                                <div class="font-semibold">¥${item.wholesalePrice.toFixed(2)}</div>
-                                <div class="text-sm text-gray-600">A$${item.retailPrice.toFixed(2)}</div>
+                                <div class="font-semibold">¥${item.factoryPrice.toFixed(2)} ${isShortlisted ? '⭐' : ''}</div>
+                                <div class="text-sm text-gray-600">A${audPrice}</div>
+                                ${item.moq > 1 ? `
+                                  <div class="text-xs text-gray-500 mt-1 bg-gray-100 rounded px-2 py-1 inline-block">
+                                    MOQ ${item.moq}: ¥${totalRMB.toFixed(2)} / A${totalAUD}
+                                  </div>
+                                ` : ''}
                               </div>
                               <div class="flex gap-2">
                                 <button onclick="toggleShortlist(${item.id})" 
-                                  class="p-2 rounded text-2xl ${item.status === 'shortlist' ? 'bg-yellow-100' : 'bg-gray-100'}">
-                                  ${item.status === 'shortlist' ? '⭐' : '☆'}
+                                  class="p-2 rounded-lg text-2xl ${isShortlisted ? 'bg-yellow-200' : 'bg-gray-100'}">
+                                  ${isShortlisted ? '⭐' : '☆'}
                                 </button>
-                                <button onclick="deleteItem(${item.id})" class="p-2 rounded bg-gray-100">🗑️</button>
+                                <button onclick="deleteItem(${item.id})" class="p-2 rounded-lg bg-red-50 text-red-600">🗑️</button>
                               </div>
                             </div>
-                            ${item.moq ? `<div class="text-xs text-gray-500 mt-1">MOQ: ${item.moq}</div>` : ''}
-                            ${item.description ? `<div class="text-sm mt-1">${item.description}</div>` : ''}
+                            ${item.description ? `<div class="text-sm mt-2 text-gray-700">${item.description}</div>` : ''}
                           </div>
                         </div>
                       </div>
-                    `).join('')}
+                    `}).join('')}
                   </div>`
                 }
+              </div>
+            </div>
+          </div>
+        `;
+      }
+      
+      else if (state.view === 'reviewPO') {
+        const shortlisted = state.items.filter(i => i.visitId === state.currentVisit.id && i.status === 'shortlist');
+        const totalRMB = shortlisted.reduce((sum, i) => sum + (i.factoryPrice * (i.moq || 1)), 0);
+        const totalAUD = convertToAUD(totalRMB);
+        const commission = state.currentVisit.agentCommission || state.settings.defaultAgentCommission;
+        const commissionAmount = totalRMB * (commission / 100);
+        const grandTotal = totalRMB + commissionAmount;
+        
+        app.innerHTML = `
+          <div class="min-h-screen bg-gray-100">
+            <div class="bg-blue-600 text-white p-4 flex items-center gap-3">
+              <button onclick="changeView('visitDetail')" class="text-2xl">←</button>
+              <h1 class="text-xl font-bold">Purchase Order Review</h1>
+            </div>
+            
+            <div class="p-4 space-y-4">
+              <!-- Supplier Info -->
+              <div class="bg-white rounded-lg shadow p-4">
+                <h3 class="font-bold mb-3">Supplier Details</h3>
+                <div class="space-y-2 text-sm">
+                  <div><span class="text-gray-600">Name:</span> <span class="font-semibold">${state.currentVisit.name}</span></div>
+                  <div><span class="text-gray-600">WeChat:</span> ${state.currentVisit.wechat || 'N/A'}</div>
+                  <div><span class="text-gray-600">Email:</span> ${state.currentVisit.email || 'N/A'}</div>
+                  <div><span class="text-gray-600">Address:</span> ${state.currentVisit.address || 'N/A'}</div>
+                </div>
+              </div>
+              
+              <!-- Agent Info -->
+              <div class="bg-blue-50 rounded-lg border border-blue-200 p-4">
+                <h3 class="font-bold mb-3">Agent Details</h3>
+                <div class="space-y-2 text-sm">
+                  <div><span class="text-gray-600">Name:</span> <span class="font-semibold">${state.settings.agentName || 'Not set'}</span></div>
+                  <div><span class="text-gray-600">Email:</span> ${state.settings.agentEmail || 'Not set'}</div>
+                  <div><span class="text-gray-600">WeChat:</span> ${state.settings.agentWechat || 'Not set'}</div>
+                  <div><span class="text-gray-600">Phone:</span> ${state.settings.agentPhone || 'Not set'}</div>
+                  <div><span class="text-gray-600">Commission:</span> <span class="font-semibold">${commission}%</span></div>
+                </div>
+              </div>
+              
+              <!-- Items -->
+              <div class="bg-white rounded-lg shadow p-4">
+                <h3 class="font-bold mb-3">Order Items (${shortlisted.length})</h3>
+                <div class="space-y-3">
+                  ${shortlisted.map((item, index) => {
+                    const totalItemRMB = item.factoryPrice * (item.moq || 1);
+                    const totalItemAUD = convertToAUD(totalItemRMB);
+                    return `
+                      <div class="flex gap-3 border-b pb-3">
+                        <div class="text-gray-500 font-semibold">#${index + 1}</div>
+                        <img src="${item.photo}" class="w-16 h-16 object-cover rounded">
+                        <div class="flex-1">
+                          <div class="font-semibold">¥${item.factoryPrice.toFixed(2)} × ${item.moq}</div>
+                          <div class="text-sm text-gray-600">= ¥${totalItemRMB.toFixed(2)} (A${totalItemAUD})</div>
+                          ${item.description ? `<div class="text-xs text-gray-500 mt-1">${item.description}</div>` : ''}
+                        </div>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+              
+              <!-- Total Calculation -->
+              <div class="bg-green-50 rounded-lg border-2 border-green-300 p-4">
+                <h3 class="font-bold mb-3">Order Summary</h3>
+                <div class="space-y-2">
+                  <div class="flex justify-between">
+                    <span>Subtotal (Products):</span>
+                    <span class="font-semibold">¥${totalRMB.toFixed(2)}</span>
+                  </div>
+                  <div class="flex justify-between text-blue-600">
+                    <span>Agent Commission (${commission}%):</span>
+                    <span class="font-semibold">¥${commissionAmount.toFixed(2)}</span>
+                  </div>
+                  <div class="border-t-2 border-green-300 pt-2 flex justify-between text-lg font-bold">
+                    <span>Grand Total:</span>
+                    <div class="text-right">
+                      <div class="text-green-600">¥${grandTotal.toFixed(2)}</div>
+                      <div class="text-sm text-gray-600">A${convertToAUD(grandTotal)}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Action Buttons -->
+              <div class="grid grid-cols-2 gap-3">
+                <button onclick="changeView('visitDetail')" class="bg-gray-500 text-white p-4 rounded-lg font-semibold">
+                  ← Back
+                </button>
+                <button onclick="sendPO()" class="bg-blue-600 text-white p-4 rounded-lg font-semibold">
+                  ✉️ Send to Agent
+                </button>
               </div>
             </div>
           </div>
@@ -325,7 +558,7 @@
       }
     }
 
-    function saveSupplier() {
+    function saveSupplier(addItems) {
       const name = document.getElementById('supplierName').value;
       if (!name) return alert('Please enter supplier name');
       
@@ -344,38 +577,76 @@
       state.currentVisit = visit;
       state.supplierForm = { name: '', wechat: '', email: '', address: '', cardImage: null, agentCommission: '' };
       saveState();
-      state.view = 'visitDetail';
+      
+      if (addItems) {
+        state.view = 'addProduct';
+      } else {
+        state.view = 'home';
+      }
       render();
     }
 
-    function calculateMargin(wholesale, retail) {
-      if (!wholesale || !retail) return 0;
-      const commission = state.currentVisit.agentCommission || state.settings.defaultAgentCommission;
-      const landed = parseFloat(wholesale) * (1 + commission / 100);
-      return (((parseFloat(retail) - landed) / parseFloat(retail)) * 100).toFixed(1);
-    }
-
-    function updatePrices() {
-      state.formData.wholesalePrice = document.getElementById('wholesalePrice').value;
-      state.formData.retailPrice = document.getElementById('retailPrice').value;
-      render();
+    function updateProductPrices() {
+      state.formData.factoryPrice = document.getElementById('factoryPrice').value;
+      state.formData.moq = document.getElementById('moq').value;
+      
+      // Update only the price display sections without full re-render
+      const factoryPrice = parseFloat(state.formData.factoryPrice) || 0;
+      const moq = parseInt(state.formData.moq) || 1;
+      
+      if (factoryPrice > 0) {
+        const audPrice = convertToAUD(factoryPrice);
+        const landedCost = calculateLandedCost(factoryPrice);
+        const priceDisplay = document.getElementById('priceDisplay');
+        if (priceDisplay) {
+          priceDisplay.innerHTML = `
+            <div class="flex justify-between text-sm">
+              <span>Retail Price (AUD):</span>
+              <span class="font-semibold">A${audPrice}</span>
+            </div>
+            <div class="flex justify-between text-sm mt-1">
+              <span>Landed Cost (with ${state.currentVisit?.agentCommission || state.settings.defaultAgentCommission}% commission):</span>
+              <span class="font-semibold">¥${landedCost.toFixed(2)}</span>
+            </div>
+          `;
+        }
+      }
+      
+      if (moq > 1 && factoryPrice > 0) {
+        const totalRMB = factoryPrice * moq;
+        const totalAUD = convertToAUD(totalRMB);
+        const moqDisplay = document.getElementById('moqDisplay');
+        if (moqDisplay) {
+          moqDisplay.innerHTML = `
+            <div class="text-sm text-gray-600 mb-1">Total for ${moq} units:</div>
+            <div class="flex justify-between items-center">
+              <div>
+                <div class="text-lg font-bold text-green-700">¥${totalRMB.toFixed(2)}</div>
+                <div class="text-sm text-gray-600">RMB</div>
+              </div>
+              <div class="text-right">
+                <div class="text-lg font-bold text-green-700">A${totalAUD}</div>
+                <div class="text-sm text-gray-600">AUD</div>
+              </div>
+            </div>
+          `;
+        }
+      }
     }
 
     function saveProduct(addNext) {
-      const wholesale = document.getElementById('wholesalePrice').value;
-      const retail = document.getElementById('retailPrice').value;
+      const factoryPrice = document.getElementById('factoryPrice').value;
       
-      if (!state.formData.photo || !wholesale || !retail) {
-        return alert('Please fill in photo and prices');
+      if (!state.formData.photo || !factoryPrice) {
+        return alert('Please fill in photo and factory price');
       }
       
       const item = {
         id: Date.now(),
         visitId: state.currentVisit.id,
         photo: state.formData.photo,
-        wholesalePrice: parseFloat(wholesale),
-        retailPrice: parseFloat(retail),
-        moq: document.getElementById('moq').value,
+        factoryPrice: parseFloat(factoryPrice),
+        moq: parseInt(document.getElementById('moq').value) || 1,
         description: document.getElementById('description').value,
         status: 'review',
         timestamp: new Date().toISOString()
@@ -385,11 +656,11 @@
       saveState();
       
       if (addNext) {
-        state.formData = { photo: null, wholesalePrice: '', retailPrice: '', moq: '', description: '' };
+        state.formData = { photo: null, factoryPrice: '', moq: '1', description: '' };
         render();
         setTimeout(() => document.getElementById('productPhoto').click(), 100);
       } else {
-        state.formData = { photo: null, wholesalePrice: '', retailPrice: '', moq: '', description: '' };
+        state.formData = { photo: null, factoryPrice: '', moq: '1', description: '' };
         state.view = 'visitDetail';
         render();
       }
@@ -402,6 +673,103 @@
       render();
     }
 
+    function shortlistAll() {
+      if (confirm('Shortlist all items from this supplier?')) {
+        state.items.forEach(item => {
+          if (item.visitId === state.currentVisit.id) {
+            item.status = 'shortlist';
+          }
+        });
+        saveState();
+        render();
+      }
+    }
+
+    function reviewShortlist() {
+      state.view = 'reviewPO';
+      render();
+    }
+
+    function sendPO() {
+      const shortlisted = state.items.filter(i => i.visitId === state.currentVisit.id && i.status === 'shortlist');
+      
+      if (shortlisted.length === 0) {
+        alert('No items shortlisted. Please shortlist items first.');
+        return;
+      }
+      
+      if (!state.settings.agentEmail) {
+        alert('Please set agent email in Settings first.');
+        return;
+      }
+      
+      const totalRMB = shortlisted.reduce((sum, i) => sum + (i.factoryPrice * (i.moq || 1)), 0);
+      const commission = state.currentVisit.agentCommission || state.settings.defaultAgentCommission;
+      const commissionAmount = totalRMB * (commission / 100);
+      const grandTotal = totalRMB + commissionAmount;
+      
+      const itemsList = shortlisted.map((item, index) => {
+        const itemTotal = item.factoryPrice * (item.moq || 1);
+        return `${index + 1}. Price: ¥${item.factoryPrice.toFixed(2)} × MOQ: ${item.moq} = ¥${itemTotal.toFixed(2)} (A${convertToAUD(itemTotal)})
+   ${item.description ? 'Notes: ' + item.description : ''}`;
+      }).join('\n\n');
+      
+      const body = `PURCHASE ORDER REQUEST
+
+══════════════════════════════════════
+SUPPLIER INFORMATION
+══════════════════════════════════════
+Company: ${state.currentVisit.name}
+Contact: ${state.currentVisit.wechat || 'N/A'}
+Email: ${state.currentVisit.email || 'N/A'}
+Address: ${state.currentVisit.address || 'N/A'}
+
+══════════════════════════════════════
+ORDER DETAILS
+══════════════════════════════════════
+Total Items: ${shortlisted.length}
+
+${itemsList}
+
+══════════════════════════════════════
+FINANCIAL SUMMARY
+══════════════════════════════════════
+Subtotal (Products):        ¥${totalRMB.toFixed(2)} (A${convertToAUD(totalRMB)})
+Agent Commission (${commission}%):    ¥${commissionAmount.toFixed(2)} (A${convertToAUD(commissionAmount)})
+────────────────────────────────────
+GRAND TOTAL:                ¥${grandTotal.toFixed(2)} (A${convertToAUD(grandTotal)})
+
+══════════════════════════════════════
+AGENT INFORMATION
+══════════════════════════════════════
+Agent: ${state.settings.agentName}
+Email: ${state.settings.agentEmail}
+WeChat: ${state.settings.agentWechat}
+Phone: ${state.settings.agentPhone}
+
+══════════════════════════════════════
+
+Exchange Rate: ¥${state.settings.exchangeRate} = A$1.00
+Generated: ${new Date().toLocaleString()}
+
+Please process this order and confirm timeline.`;
+      
+      // Send to agent with supplier CC'd
+      const mailto = `mailto:${state.settings.agentEmail}?cc=${state.currentVisit.email || ''}&subject=PO Request - ${state.currentVisit.name} - ${shortlisted.length} Items&body=${encodeURIComponent(body)}`;
+      window.location.href = mailto;
+      
+      // Mark as sent
+      if (confirm('Email opened. Mark this order as sent?')) {
+        shortlisted.forEach(item => {
+          item.status = 'sent';
+          item.sentDate = new Date().toISOString();
+        });
+        saveState();
+        state.view = 'visitDetail';
+        render();
+      }
+    }
+
     function deleteItem(id) {
       if (confirm('Delete this item?')) {
         state.items = state.items.filter(i => i.id !== id);
@@ -411,14 +779,12 @@
     }
 
     function sendEmail() {
-      const items = state.items.filter(i => i.visitId === state.currentVisit.id && i.status === 'shortlist');
-      const total = items.reduce((sum, i) => sum + i.wholesalePrice, 0);
-      const body = `Purchase Order\n\nSupplier: ${state.currentVisit.name}\nItems: ${items.length}\nTotal: ¥${total.toFixed(2)}\n\nAgent commission: ${state.currentVisit.agentCommission}%`;
-      window.location.href = `mailto:${state.currentVisit.email}?subject=Purchase Order - ${state.currentVisit.name}&body=${encodeURIComponent(body)}`;
+      // Legacy function - redirects to new PO system
+      reviewShortlist();
     }
 
     function exportData() {
-      const data = { visits: state.visits, items: state.items, exportDate: new Date().toISOString() };
+      const data = { visits: state.visits, items: state.items, settings: state.settings, exportDate: new Date().toISOString() };
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -438,6 +804,7 @@
             if (data.visits && data.items) {
               state.visits = data.visits;
               state.items = data.items;
+              if (data.settings) state.settings = data.settings;
               saveState();
               render();
               alert('Data imported!');
@@ -463,12 +830,17 @@
       }
     }
 
-    function updateCommission(value) {
-      state.settings.defaultAgentCommission = parseFloat(value) || 15;
+    function updateSettings() {
+      state.settings.defaultAgentCommission = parseFloat(document.getElementById('commissionInput').value) || 5;
+      state.settings.exchangeRate = parseFloat(document.getElementById('exchangeRate').value) || 4.8;
+      state.settings.agentName = document.getElementById('agentName').value;
+      state.settings.agentEmail = document.getElementById('agentEmail').value;
+      state.settings.agentWechat = document.getElementById('agentWechat').value;
+      state.settings.agentPhone = document.getElementById('agentPhone').value;
       saveState();
+      render();
     }
 
-    // Initial render
     render();
   </script>
 </body>
