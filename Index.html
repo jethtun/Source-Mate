@@ -19,13 +19,14 @@
     let state = {
       visits: JSON.parse(localStorage.getItem('visits') || '[]'),
       items: JSON.parse(localStorage.getItem('items') || '[]'),
-      settings: JSON.parse(localStorage.getItem('settings') || '{"defaultAgentCommission":5,"exchangeRate":4.8,"agentName":"","agentEmail":"","agentWechat":"","agentPhone":"","categories":["Household & Cleaning","Kitchen & Dining","Personal Care & Beauty","Health & Wellness","Baby & Kids","Pet Supplies","Stationery & Office","Electronics & Accessories","Home Decor & Textiles","Storage & Organization","Seasonal & Party Supplies","Tools & Hardware","Automotive & Garden"]}'),
+      settings: JSON.parse(localStorage.getItem('settings') || '{"defaultAgentCommission":5,"exchangeRate":4.8,"agentName":"","agentEmail":"","agentWechat":"","agentPhone":"","categories":["Automotive & Garden","Baby & Kids","Electronics & Accessories","Health & Wellness","Home Decor & Textiles","Household & Cleaning","Kitchen & Dining","Personal Care & Beauty","Pet Supplies","Seasonal & Party Supplies","Stationery & Office","Storage & Organization","Tools & Hardware"]}'),
       currentVisit: null,
       currentEditItem: null,
       negotiationPhoto: null,
       negotiationNotes: '',
       view: 'home',
       homeTab: 'recent',
+      selectedCategory: 'All',
       formData: { photo: null, factoryPrice: '', moq: '1', description: '', modelNumber: '', color: '', material: '', category: '' },
       supplierForm: { name: '', wechat: '', email: '', address: '', cardImage: null, agentCommission: '', boothNumber: '', tradeFair: '', contact: '', phone: '' }
     };
@@ -43,660 +44,6 @@
     function calculateLandedCost(factoryPrice) {
       const commission = state.currentVisit?.agentCommission || state.settings.defaultAgentCommission;
       return parseFloat(factoryPrice) * (1 + commission / 100);
-    }
-
-    function render() {
-      const app = document.getElementById('app');
-      
-      if (state.view === 'home') {
-        app.innerHTML = `
-          <div class="min-h-screen bg-gray-100">
-            <div class="bg-blue-600 text-white p-4">
-              <div class="flex justify-between items-center">
-                <div>
-                  <h1 class="text-2xl font-bold">Sourcing Mate Pro</h1>
-                  <p class="text-sm opacity-90">Offline • ${getStorageSize()}KB</p>
-                </div>
-                <button onclick="changeView('settings')" class="p-2 bg-blue-700 rounded">⚙️</button>
-              </div>
-            </div>
-            <div class="p-4">
-              <button onclick="changeView('newSupplier')" class="w-full bg-blue-600 text-white p-4 rounded-lg mb-4 text-lg font-semibold">
-                ➕ New Supplier
-              </button>
-              <div class="grid grid-cols-3 gap-2 mb-4">
-                <button onclick="exportData()" class="bg-white p-3 rounded-lg text-sm border">📤 Export</button>
-                <button onclick="document.getElementById('importFile').click()" class="bg-white p-3 rounded-lg text-sm border">📥 Import</button>
-                <button onclick="clearOldData()" class="bg-white p-3 rounded-lg text-sm border">🧹 Clean</button>
-              </div>
-              <input type="file" id="importFile" accept=".json" onchange="importData(event)" class="hidden">
-              
-              <div class="bg-white rounded-lg shadow p-4">
-                <div class="flex justify-between items-center mb-3">
-                  <h2 class="text-lg font-bold">Recent Visits</h2>
-                  <span class="text-sm text-gray-500">${state.visits.length} suppliers</span>
-                </div>
-                ${state.visits.length === 0 ? 
-                  '<p class="text-gray-500 text-center py-8">No suppliers yet!</p>' :
-                  `<div class="space-y-2">
-                    ${state.visits.slice().reverse().map(visit => {
-                      const items = state.items.filter(i => i.visitId === visit.id);
-                      const shortlisted = items.filter(i => i.status === 'shortlist').length;
-                      return `
-                        <div onclick="openVisit(${visit.id})" class="border rounded-lg p-3 cursor-pointer active:bg-gray-50">
-                          <div class="flex justify-between">
-                            <div>
-                              <h3 class="font-semibold">${visit.name}</h3>
-                              ${visit.boothNumber ? `<p class="text-xs text-blue-600 font-semibold">📍 Booth ${visit.boothNumber}</p>` : ''}
-                              <p class="text-sm text-gray-600">${visit.wechat || visit.contact || ''}</p>
-                            </div>
-                            <div class="text-right">
-                              <div class="text-sm text-gray-500">${items.length} items</div>
-                              ${shortlisted > 0 ? `<div class="text-sm text-yellow-600">⭐ ${shortlisted}</div>` : ''}
-                            </div>
-                          </div>
-                        </div>
-                      `;
-                    }).join('')}
-                  </div>`
-                }
-              </div>
-            </div>
-          </div>
-        `;
-      }
-      
-      else if (state.view === 'settings') {
-        app.innerHTML = `
-          <div class="min-h-screen bg-gray-100">
-            <div class="bg-blue-600 text-white p-4 flex items-center gap-3">
-              <button onclick="changeView('home')" class="text-2xl">←</button>
-              <h1 class="text-xl font-bold">Settings</h1>
-            </div>
-            <div class="p-4">
-              <div class="bg-white rounded-lg shadow p-4 space-y-4">
-                <h3 class="font-semibold text-lg">Agent Information</h3>
-                <div>
-                  <label class="block text-sm font-medium mb-2">Agent Name</label>
-                  <input type="text" id="agentName" value="${state.settings.agentName || ''}" 
-                    onchange="updateSettings()" class="w-full border rounded-lg p-3 text-lg" placeholder="Agent name">
-                </div>
-                <div>
-                  <label class="block text-sm font-medium mb-2">Agent Email</label>
-                  <input type="email" id="agentEmail" value="${state.settings.agentEmail || ''}" 
-                    onchange="updateSettings()" class="w-full border rounded-lg p-3 text-lg" placeholder="agent@email.com">
-                </div>
-                <div>
-                  <label class="block text-sm font-medium mb-2">Agent WeChat ID</label>
-                  <input type="text" id="agentWechat" value="${state.settings.agentWechat || ''}" 
-                    onchange="updateSettings()" class="w-full border rounded-lg p-3 text-lg" placeholder="WeChat ID">
-                </div>
-                <div>
-                  <label class="block text-sm font-medium mb-2">Agent Phone</label>
-                  <input type="tel" id="agentPhone" value="${state.settings.agentPhone || ''}" 
-                    onchange="updateSettings()" class="w-full border rounded-lg p-3 text-lg" placeholder="+86 123 4567 8900">
-                </div>
-                
-                <div class="border-t pt-4">
-                  <h3 class="font-semibold text-lg mb-4">Default Values</h3>
-                  <div>
-                    <label class="block text-sm font-medium mb-2">Default Agent Commission %</label>
-                    <input type="number" step="0.1" id="commissionInput" value="${state.settings.defaultAgentCommission}" 
-                      onchange="updateSettings()" class="w-full border rounded-lg p-3 text-lg">
-                  </div>
-                </div>
-                
-                <div>
-                  <label class="block text-sm font-medium mb-2">Exchange Rate (RMB to AUD)</label>
-                  <div class="flex items-center gap-2">
-                    <span class="text-lg">¥1 =</span>
-                    <input type="number" step="0.01" id="exchangeRate" value="${state.settings.exchangeRate}" 
-                      onchange="updateSettings()" class="flex-1 border rounded-lg p-3 text-lg">
-                    <span class="text-lg">AUD</span>
-                  </div>
-                  <p class="text-xs text-gray-500 mt-1">Current: ¥${state.settings.exchangeRate} = A$1.00</p>
-                </div>
-                
-                <div class="border-t pt-4">
-                  <h3 class="font-semibold text-lg mb-4">Product Categories</h3>
-                  <div class="space-y-2 mb-3">
-                    ${state.settings.categories.map((cat, idx) => `
-                      <div class="flex justify-between items-center p-2 bg-gray-50 rounded">
-                        <span>${cat}</span>
-                        <button onclick="removeCategory(${idx})" class="text-red-600 text-sm">Remove</button>
-                      </div>
-                    `).join('')}
-                  </div>
-                  <div class="flex gap-2">
-                    <input type="text" id="newCategory" placeholder="Add new category" 
-                      class="flex-1 border rounded-lg p-2">
-                    <button onclick="addCategory()" class="bg-blue-600 text-white px-4 rounded-lg">Add</button>
-                  </div>
-                </div>
-                
-                <div class="pt-4 border-t">
-                  <h3 class="font-semibold mb-2">Storage Info</h3>
-                  <p class="text-sm">Total: ${getStorageSize()}KB</p>
-                  <p class="text-sm">Suppliers: ${state.visits.length}</p>
-                  <p class="text-sm">Products: ${state.items.length}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        `;
-      }
-      
-      else if (state.view === 'newSupplier') {
-        app.innerHTML = `
-          <div class="min-h-screen bg-gray-100">
-            <div class="bg-blue-600 text-white p-4 flex items-center gap-3">
-              <button onclick="changeView('home')" class="text-2xl">←</button>
-              <h1 class="text-xl font-bold">New Supplier</h1>
-            </div>
-            <div class="p-4">
-              <div class="bg-white rounded-lg shadow p-4 space-y-4">
-                <div>
-                  <button onclick="document.getElementById('cardPhoto').click()" 
-                    class="w-full border-2 border-dashed rounded-lg p-8">
-                    ${state.supplierForm.cardImage ? 
-                      `<img src="${state.supplierForm.cardImage}" class="w-full h-32 object-cover rounded">` :
-                      '<div class="text-center"><div class="text-4xl">📇</div><p>Scan Business Card</p><p class="text-xs text-gray-500 mt-2">Note: Auto-fill from business card is not yet available. Manual entry required.</p></div>'
-                    }
-                  </button>
-                  <input type="file" id="cardPhoto" accept="image/*" capture="environment" 
-                    onchange="handleCardPhoto(event)" class="hidden">
-                </div>
-                
-                <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                  <h3 class="font-semibold text-sm mb-2 text-blue-900">📍 Trade Show Information</h3>
-                  <div class="space-y-2">
-                    <input type="text" id="tradeFair" placeholder="Trade Fair Name (e.g., Canton Fair)" 
-                      class="w-full border rounded-lg p-2 text-base">
-                    <input type="text" id="boothNumber" placeholder="Booth Number * (e.g., 5.2A-123)" 
-                      class="w-full border rounded-lg p-2 text-base">
-                  </div>
-                </div>
-                
-                <input type="text" id="supplierName" placeholder="Company Name *" 
-                  class="w-full border rounded-lg p-3 text-lg">
-                <input type="text" id="supplierContact" placeholder="Contact Person Name" 
-                  class="w-full border rounded-lg p-3 text-lg">
-                <input type="tel" id="supplierPhone" placeholder="Phone Number" 
-                  class="w-full border rounded-lg p-3 text-lg">
-                <input type="text" id="supplierWechat" placeholder="WeChat ID" 
-                  class="w-full border rounded-lg p-3 text-lg">
-                <input type="email" id="supplierEmail" placeholder="Email" 
-                  class="w-full border rounded-lg p-3 text-lg">
-                <input type="text" id="supplierAddress" placeholder="Factory Address" 
-                  class="w-full border rounded-lg p-3 text-lg">
-                <input type="number" step="0.1" id="supplierCommission" placeholder="Commission % (default: ${state.settings.defaultAgentCommission}%)" 
-                  class="w-full border rounded-lg p-3 text-lg">
-                
-                <div class="flex gap-2">
-                  <button onclick="saveSupplier(false)" class="flex-1 bg-blue-600 text-white p-4 rounded-lg font-semibold">
-                    Save
-                  </button>
-                  <button onclick="saveSupplier(true)" class="flex-1 bg-green-600 text-white p-4 rounded-lg font-semibold">
-                    Save & Add Items
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        `;
-      }
-      
-      else if (state.view === 'addProduct') {
-        const factoryPrice = parseFloat(state.formData.factoryPrice) || 0;
-        const moq = parseInt(state.formData.moq) || 1;
-        const audPrice = factoryPrice > 0 ? convertToAUD(factoryPrice) : '0.00';
-        const landedCost = factoryPrice > 0 ? calculateLandedCost(factoryPrice) : 0;
-        const totalRMB = factoryPrice * moq;
-        const totalAUD = totalRMB > 0 ? convertToAUD(totalRMB) : '0.00';
-        
-        app.innerHTML = `
-          <div class="min-h-screen bg-gray-100">
-            <div class="bg-blue-600 text-white p-4 flex items-center gap-3">
-              <button onclick="changeView('visitDetail')" class="text-2xl">←</button>
-              <h1 class="text-xl font-bold">Add Product</h1>
-            </div>
-            <div class="p-4">
-              <div class="bg-white rounded-lg shadow p-4 space-y-4">
-                <div>
-                  <button onclick="document.getElementById('productPhoto').click()" 
-                    class="w-full border-2 border-dashed rounded-lg p-8">
-                    ${state.formData.photo ? 
-                      `<img src="${state.formData.photo}" class="w-full h-48 object-cover rounded">` :
-                      '<div class="text-center"><div class="text-5xl">📷</div><p class="font-semibold">Take Photo</p></div>'
-                    }
-                  </button>
-                  <input type="file" id="productPhoto" accept="image/*" capture="environment" 
-                    onchange="handleProductPhoto(event)" class="hidden">
-                </div>
-                
-                <div class="bg-purple-50 border border-purple-200 rounded-lg p-3">
-                  <h3 class="font-semibold text-sm mb-2 text-purple-900">🏷️ Product Information</h3>
-                  <div class="space-y-2">
-                    <select id="category" class="w-full border rounded-lg p-2 text-base">
-                      <option value="">Select Category</option>
-                      ${state.settings.categories.map(cat => 
-                        `<option value="${cat}" ${state.formData.category === cat ? 'selected' : ''}>${cat}</option>`
-                      ).join('')}
-                    </select>
-                    <input type="text" id="modelNumber" placeholder="Model/Item Code (e.g., XYZ-2024)" 
-                      value="${state.formData.modelNumber}" class="w-full border rounded-lg p-2 text-base">
-                    <div class="grid grid-cols-2 gap-2">
-                      <input type="text" id="color" placeholder="Color" 
-                        value="${state.formData.color}" class="border rounded-lg p-2 text-base">
-                      <input type="text" id="material" placeholder="Material" 
-                        value="${state.formData.material}" class="border rounded-lg p-2 text-base">
-                    </div>
-                  </div>
-                </div>
-                
-                <div>
-                  <label class="block text-sm font-medium mb-2">Factory Price (RMB) *</label>
-                  <div class="relative">
-                    <span class="absolute left-3 top-3 text-lg text-gray-500">¥</span>
-                    <input type="number" step="0.01" id="factoryPrice" 
-                      oninput="updateProductPrices()" class="w-full border rounded-lg p-3 pl-8 text-lg" 
-                      placeholder="0.00" value="${state.formData.factoryPrice}">
-                  </div>
-                  ${factoryPrice > 0 ? 
-                    `<div id="priceDisplay" class="mt-2 p-3 bg-blue-50 rounded-lg">
-                      <div class="flex justify-between text-sm">
-                        <span>Retail Price (AUD):</span>
-                        <span class="font-semibold">A${audPrice}</span>
-                      </div>
-                      <div class="flex justify-between text-sm mt-1">
-                        <span>Landed Cost (with ${state.currentVisit?.agentCommission || state.settings.defaultAgentCommission}% commission):</span>
-                        <span class="font-semibold">¥${landedCost.toFixed(2)}</span>
-                      </div>
-                    </div>` : '<div id="priceDisplay"></div>'
-                  }
-                </div>
-                
-                <div>
-                  <label class="block text-sm font-medium mb-2">MOQ (Minimum Order Quantity)</label>
-                  <input type="number" id="moq" min="1" 
-                    oninput="updateProductPrices()" class="w-full border rounded-lg p-3 text-lg" 
-                    placeholder="1" value="${state.formData.moq}">
-                  ${moq > 1 && factoryPrice > 0 ? 
-                    `<div id="moqDisplay" class="mt-2 p-3 bg-green-50 border border-green-200 rounded-lg">
-                      <div class="text-sm text-gray-600 mb-1">Total for ${moq} units:</div>
-                      <div class="flex justify-between items-center">
-                        <div>
-                          <div class="text-lg font-bold text-green-700">¥${totalRMB.toFixed(2)}</div>
-                          <div class="text-sm text-gray-600">RMB</div>
-                        </div>
-                        <div class="text-right">
-                          <div class="text-lg font-bold text-green-700">A${totalAUD}</div>
-                          <div class="text-sm text-gray-600">AUD</div>
-                        </div>
-                      </div>
-                    </div>` : '<div id="moqDisplay"></div>'
-                  }
-                </div>
-                
-                <div>
-                  <label class="block text-sm font-medium mb-2">Notes</label>
-                  <textarea id="description" placeholder="Product notes..." rows="2" 
-                    class="w-full border rounded-lg p-3">${state.formData.description}</textarea>
-                </div>
-                
-                <div class="flex gap-2">
-                  <button onclick="saveProduct(true)" class="flex-1 bg-green-600 text-white p-4 rounded-lg font-semibold">
-                    Save & Next
-                  </button>
-                  <button onclick="saveProduct(false)" class="flex-1 bg-blue-600 text-white p-4 rounded-lg font-semibold">
-                    Finish
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        `;
-      }
-      
-      else if (state.view === 'visitDetail') {
-        const items = state.items.filter(i => i.visitId === state.currentVisit.id);
-        const shortlisted = items.filter(i => i.status === 'shortlist');
-        const totalShortlistedRMB = shortlisted.reduce((sum, i) => sum + (i.factoryPrice * (i.moq || 1)), 0);
-        const totalShortlistedAUD = convertToAUD(totalShortlistedRMB);
-        
-        app.innerHTML = `
-          <div class="min-h-screen bg-gray-100 pb-24">
-            <div class="bg-blue-600 text-white p-4">
-              <button onclick="changeView('home')" class="text-2xl mb-2">←</button>
-              <h1 class="text-xl font-bold">${state.currentVisit.name}</h1>
-              ${state.currentVisit.boothNumber ? `<p class="text-sm opacity-90">📍 Booth ${state.currentVisit.boothNumber}</p>` : ''}
-              <p class="text-sm opacity-90">${state.currentVisit.wechat || state.currentVisit.contact || ''}</p>
-            </div>
-            <div class="p-4">
-              <button onclick="changeView('addProduct')" class="w-full bg-green-600 text-white p-4 rounded-lg mb-4 font-semibold">
-                ➕ Add Product
-              </button>
-              
-              ${shortlisted.length > 0 ? `
-                <div class="bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-300 rounded-lg p-4 mb-4">
-                  <div class="flex items-center justify-between mb-3">
-                    <div>
-                      <div class="text-lg font-bold text-yellow-900">⭐ ${shortlisted.length} Items Shortlisted</div>
-                      <div class="text-sm text-yellow-700">Ready for Purchase Order</div>
-                    </div>
-                  </div>
-                  <div class="bg-white rounded-lg p-3 mb-3">
-                    <div class="grid grid-cols-2 gap-3">
-                      <div>
-                        <div class="text-xs text-gray-500">Total (RMB)</div>
-                        <div class="text-xl font-bold text-green-600">¥${totalShortlistedRMB.toFixed(2)}</div>
-                      </div>
-                      <div>
-                        <div class="text-xs text-gray-500">Total (AUD)</div>
-                        <div class="text-xl font-bold text-green-600">A${totalShortlistedAUD}</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="grid grid-cols-2 gap-2">
-                    <button onclick="reviewShortlist()" class="bg-yellow-600 text-white px-4 py-3 rounded-lg font-semibold">
-                      📋 Review PO
-                    </button>
-                    <button onclick="sendPO()" class="bg-blue-600 text-white px-4 py-3 rounded-lg font-semibold">
-                      ✉️ Send to Agent
-                    </button>
-                  </div>
-                </div>
-              ` : ''}
-              
-              <div class="bg-white rounded-lg shadow p-4">
-                <div class="flex justify-between items-center mb-3">
-                  <h2 class="font-bold">All Products (${items.length})</h2>
-                  ${items.length > 0 && shortlisted.length < items.length ? 
-                    `<button onclick="shortlistAll()" class="text-sm text-blue-600 font-semibold">
-                      Shortlist All
-                    </button>` : ''
-                  }
-                </div>
-                
-                ${items.length === 0 ? 
-                  '<p class="text-gray-500 text-center py-8">No products yet!</p>' :
-                  `<div class="space-y-3">
-                    ${items.slice().reverse().map(item => {
-                      const audPrice = convertToAUD(item.factoryPrice);
-                      const totalRMB = item.factoryPrice * (item.moq || 1);
-                      const totalAUD = convertToAUD(totalRMB);
-                      const isShortlisted = item.status === 'shortlist';
-                      return `
-                      <div class="border rounded-lg p-3 ${isShortlisted ? 'border-yellow-400 bg-yellow-50' : ''}">
-                        <div class="flex gap-3">
-                          <img src="${item.photo}" class="w-24 h-24 object-cover rounded">
-                          <div class="flex-1">
-                            <div class="flex justify-between">
-                              <div>
-                                <div class="font-semibold">¥${item.factoryPrice.toFixed(2)} ${isShortlisted ? '⭐' : ''}</div>
-                                <div class="text-sm text-gray-600">A${audPrice}</div>
-                                ${item.moq > 1 ? `
-                                  <div class="text-xs text-gray-500 mt-1 bg-gray-100 rounded px-2 py-1 inline-block">
-                                    MOQ ${item.moq}: ¥${totalRMB.toFixed(2)} / A${totalAUD}
-                                  </div>
-                                ` : ''}
-                              </div>
-                              <div class="flex gap-2">
-                                <button onclick="toggleShortlist(${item.id})" 
-                                  class="p-2 rounded-lg text-2xl ${isShortlisted ? 'bg-yellow-200' : 'bg-gray-100'}">
-                                  ${isShortlisted ? '⭐' : '☆'}
-                                </button>
-                                <button onclick="deleteItem(${item.id})" class="p-2 rounded-lg bg-red-50 text-red-600">🗑️</button>
-                              </div>
-                            </div>
-                            ${item.description ? `<div class="text-sm mt-2 text-gray-700">${item.description}</div>` : ''}
-                          </div>
-                        </div>
-                      </div>
-                    `}).join('')}
-                  </div>`
-                }
-              </div>
-            </div>
-          </div>
-        `;
-      }
-      
-      else if (state.view === 'reviewPO') {
-        const shortlisted = state.items.filter(i => i.visitId === state.currentVisit.id && i.status === 'shortlist');
-        const totalRMB = shortlisted.reduce((sum, i) => sum + (i.factoryPrice * (i.moq || 1)), 0);
-        const totalAUD = convertToAUD(totalRMB);
-        const commission = state.currentVisit.agentCommission || state.settings.defaultAgentCommission;
-        const commissionAmount = totalRMB * (commission / 100);
-        const grandTotal = totalRMB + commissionAmount;
-        
-        app.innerHTML = `
-          <div class="min-h-screen bg-gray-100">
-            <div class="bg-blue-600 text-white p-4 flex items-center gap-3">
-              <button onclick="changeView('visitDetail')" class="text-2xl">←</button>
-              <h1 class="text-xl font-bold">Purchase Order Review</h1>
-            </div>
-            
-            <div class="p-4 space-y-4">
-              <!-- Supplier Info -->
-              <div class="bg-white rounded-lg shadow p-4">
-                <h3 class="font-bold mb-3">Supplier Details</h3>
-                <div class="space-y-2 text-sm">
-                  <div class="bg-blue-50 rounded p-2">
-                    <span class="text-gray-600">Trade Fair:</span> <span class="font-semibold">${state.currentVisit.tradeFair || 'N/A'}</span>
-                  </div>
-                  <div class="bg-blue-50 rounded p-2">
-                    <span class="text-gray-600">Booth:</span> <span class="font-semibold text-lg">${state.currentVisit.boothNumber}</span>
-                  </div>
-                  <div><span class="text-gray-600">Company:</span> <span class="font-semibold">${state.currentVisit.name}</span></div>
-                  <div><span class="text-gray-600">Contact:</span> ${state.currentVisit.contact || 'N/A'}</div>
-                  <div><span class="text-gray-600">Phone:</span> ${state.currentVisit.phone || 'N/A'}</div>
-                  <div><span class="text-gray-600">WeChat:</span> ${state.currentVisit.wechat || 'N/A'}</div>
-                  <div><span class="text-gray-600">Email:</span> ${state.currentVisit.email || 'N/A'}</div>
-                  <div><span class="text-gray-600">Address:</span> ${state.currentVisit.address || 'N/A'}</div>
-                </div>
-              </div>
-              
-              <!-- Agent Info -->
-              <div class="bg-blue-50 rounded-lg border border-blue-200 p-4">
-                <h3 class="font-bold mb-3">Agent Details</h3>
-                <div class="space-y-2 text-sm">
-                  <div><span class="text-gray-600">Name:</span> <span class="font-semibold">${state.settings.agentName || 'Not set'}</span></div>
-                  <div><span class="text-gray-600">Email:</span> ${state.settings.agentEmail || 'Not set'}</div>
-                  <div><span class="text-gray-600">WeChat:</span> ${state.settings.agentWechat || 'Not set'}</div>
-                  <div><span class="text-gray-600">Phone:</span> ${state.settings.agentPhone || 'Not set'}</div>
-                  <div><span class="text-gray-600">Commission:</span> <span class="font-semibold">${commission}%</span></div>
-                </div>
-              </div>
-              
-              <!-- Items -->
-              <div class="bg-white rounded-lg shadow p-4">
-                <h3 class="font-bold mb-3">Order Items (${shortlisted.length})</h3>
-                <div class="space-y-3">
-                  ${shortlisted.map((item, index) => {
-                    const totalItemRMB = item.factoryPrice * (item.moq || 1);
-                    const totalItemAUD = convertToAUD(totalItemRMB);
-                    return `
-                      <div class="flex gap-3 border-b pb-3">
-                        <div class="text-gray-500 font-semibold">#${index + 1}</div>
-                        <img src="${item.photo}" class="w-16 h-16 object-cover rounded">
-                        <div class="flex-1">
-                          <div class="font-semibold">¥${item.factoryPrice.toFixed(2)} × ${item.moq}</div>
-                          <div class="text-sm text-gray-600">= ¥${totalItemRMB.toFixed(2)} (A${totalItemAUD})</div>
-                          ${item.description ? `<div class="text-xs text-gray-500 mt-1">${item.description}</div>` : ''}
-                        </div>
-                      </div>
-                    `;
-                  }).join('')}
-                </div>
-              </div>
-              
-              <!-- Total Calculation -->
-              <div class="bg-green-50 rounded-lg border-2 border-green-300 p-4">
-                <h3 class="font-bold mb-3">Order Summary</h3>
-                <div class="space-y-2">
-                  <div class="flex justify-between">
-                    <span>Subtotal (Products):</span>
-                    <span class="font-semibold">¥${totalRMB.toFixed(2)}</span>
-                  </div>
-                  <div class="flex justify-between text-blue-600">
-                    <span>Agent Commission (${commission}%):</span>
-                    <span class="font-semibold">¥${commissionAmount.toFixed(2)}</span>
-                  </div>
-                  <div class="border-t-2 border-green-300 pt-2 flex justify-between text-lg font-bold">
-                    <span>Grand Total:</span>
-                    <div class="text-right">
-                      <div class="text-green-600">¥${grandTotal.toFixed(2)}</div>
-                      <div class="text-sm text-gray-600">A${convertToAUD(grandTotal)}</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              <!-- Action Buttons -->
-              <div class="space-y-3">
-                <button onclick="sendPO()" class="w-full bg-blue-600 text-white p-4 rounded-lg font-semibold">
-                  ✉️ Send Email to Agent
-                </button>
-                <button onclick="exportForWeChat()" class="w-full bg-green-600 text-white p-4 rounded-lg font-semibold">
-                  💬 Export for WeChat
-                </button>
-                <button onclick="changeView('visitDetail')" class="w-full bg-gray-500 text-white p-3 rounded-lg font-semibold">
-                  ← Back
-                </button>
-              </div>
-            </div>
-          </div>
-        `;
-      }
-      
-      else if (state.view === 'wechatExport') {
-        const exportData = JSON.parse(localStorage.getItem('wechat_export'));
-        if (!exportData) {
-          state.view = 'home';
-          render();
-          return;
-        }
-        
-        app.innerHTML = `
-          <div class="min-h-screen bg-gradient-to-b from-green-50 to-white">
-            <div class="bg-green-600 text-white p-4">
-              <button onclick="changeView('visitDetail')" class="text-2xl mb-2">←</button>
-              <h1 class="text-xl font-bold">💬 WeChat Export Ready</h1>
-              <p class="text-sm opacity-90">Send PO to Agent via WeChat</p>
-            </div>
-            
-            <div class="p-4 space-y-4">
-              <!-- Step 1: Copy PO Text -->
-              <div class="bg-white rounded-lg shadow-lg p-4 border-2 border-green-300">
-                <div class="flex items-center gap-2 mb-3">
-                  <div class="w-8 h-8 bg-green-600 text-white rounded-full flex items-center justify-center font-bold">1</div>
-                  <h3 class="font-bold text-lg">Copy PO Text</h3>
-                </div>
-                <div class="bg-gray-50 rounded p-3 mb-3 text-xs font-mono max-h-32 overflow-y-auto">
-                  ${exportData.poText.split('\n').slice(0, 5).join('\n')}
-                  <div class="text-gray-500 mt-2">... (${exportData.poText.split('\n').length} lines total)</div>
-                </div>
-                <button onclick="copyPOText()" class="w-full bg-green-600 text-white p-3 rounded-lg font-semibold">
-                  📋 Copy PO Text
-                </button>
-                <p class="text-xs text-gray-600 mt-2">After copying: Paste into WeChat message to agent</p>
-              </div>
-              
-              <!-- Step 2: Download Photos -->
-              <div class="bg-white rounded-lg shadow-lg p-4 border-2 border-blue-300">
-                <div class="flex items-center gap-2 mb-3">
-                  <div class="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold">2</div>
-                  <h3 class="font-bold text-lg">Send Product Photos (${exportData.images.length})</h3>
-                </div>
-                
-                <button onclick="downloadAllImages()" class="w-full bg-blue-600 text-white p-3 rounded-lg font-semibold mb-3">
-                  📥 Download All ${exportData.images.length} Photos
-                </button>
-                
-                <div class="text-sm text-gray-600 mb-3">Or download individually:</div>
-                <div class="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
-                  ${exportData.images.map((img, idx) => `
-                    <div class="border rounded-lg p-2">
-                      <img src="${img.photo}" class="w-full h-24 object-cover rounded mb-2">
-                      ${img.modelNumber ? `<div class="text-xs font-mono text-purple-600 mb-1">${img.modelNumber}</div>` : ''}
-                      <button onclick="downloadImage(${idx})" class="w-full bg-gray-200 text-gray-700 py-2 rounded text-xs font-semibold">
-                        📥 Photo ${idx + 1}
-                      </button>
-                    </div>
-                  `).join('')}
-                </div>
-                <p class="text-xs text-gray-600 mt-2">After download: Share photos to WeChat from Downloads folder</p>
-              </div>
-              
-              ${exportData.negotiation ? `
-                <!-- Step 3: Negotiation Photo -->
-                <div class="bg-white rounded-lg shadow-lg p-4 border-2 border-yellow-300">
-                  <div class="flex items-center gap-2 mb-3">
-                    <div class="w-8 h-8 bg-yellow-600 text-white rounded-full flex items-center justify-center font-bold">3</div>
-                    <h3 class="font-bold text-lg">Price Negotiation</h3>
-                  </div>
-                  <img src="${exportData.negotiation.photo}" class="w-full h-32 object-cover rounded mb-2">
-                  ${exportData.negotiation.notes ? `
-                    <div class="bg-yellow-50 rounded p-2 mb-2 text-sm">
-                      <strong>Notes:</strong> ${exportData.negotiation.notes}
-                    </div>
-                  ` : ''}
-                  <button onclick="downloadNegotiation()" class="w-full bg-yellow-600 text-white p-3 rounded-lg font-semibold">
-                    📥 Download Negotiation Photo
-                  </button>
-                </div>
-              ` : ''}
-              
-              <!-- Instructions -->
-              <div class="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-4 border-2 border-purple-300">
-                <h3 class="font-bold mb-2">📱 WeChat Steps:</h3>
-                <ol class="text-sm space-y-2 list-decimal list-inside">
-                  <li>Open WeChat and find your agent: <strong>${exportData.supplier.name}</strong></li>
-                  <li>Click "Copy PO Text" above and paste into message</li>
-                  <li>Download all photos and share to WeChat</li>
-                  ${exportData.negotiation ? '<li>Send negotiation photo with notes</li>' : ''}
-                  <li>Send all messages to agent</li>
-                  <li>Wait for confirmation!</li>
-                </ol>
-              </div>
-              
-              <button onclick="finishWeChatExport()" class="w-full bg-green-600 text-white p-4 rounded-lg font-semibold">
-                ✓ Done - Return to Supplier
-              </button>
-            </div>
-          </div>
-        `;
-      }
-    }
-
-    function finishWeChatExport() {
-      if (confirm('Mark items as sent to agent?')) {
-        const exportData = JSON.parse(localStorage.getItem('wechat_export'));
-        state.items.forEach(item => {
-          if (item.visitId === state.currentVisit.id && item.status === 'shortlist') {
-            item.status = 'sent';
-            item.sentDate = new Date().toISOString();
-          }
-        });
-        saveState();
-        localStorage.removeItem('wechat_export');
-        state.negotiationPhoto = null;
-        state.negotiationNotes = '';
-      }
-      state.view = 'visitDetail';
-      render();
-    }
-
-    function exportData() {
-      state.view = view;
-      render();
-    }
-
-    function openVisit(id) {
-      state.currentVisit = state.visits.find(v => v.id === id);
-      state.view = 'visitDetail';
-      render();
     }
 
     function getStorageSize() {
@@ -744,6 +91,14 @@
       }
     }
 
+    async function handleNegotiationPhoto(e) {
+      const file = e.target.files[0];
+      if (file) {
+        state.negotiationPhoto = await compressImage(file, 800, 0.7);
+        render();
+      }
+    }
+
     function saveSupplier(addItems) {
       const name = document.getElementById('supplierName').value;
       const boothNumber = document.getElementById('boothNumber').value;
@@ -783,7 +138,6 @@
       state.formData.factoryPrice = document.getElementById('factoryPrice').value;
       state.formData.moq = document.getElementById('moq').value;
       
-      // Update only the price display sections without full re-render
       const factoryPrice = parseFloat(state.formData.factoryPrice) || 0;
       const moq = parseInt(state.formData.moq) || 1;
       
@@ -795,7 +149,7 @@
           priceDisplay.innerHTML = `
             <div class="flex justify-between text-sm">
               <span>Retail Price (AUD):</span>
-              <span class="font-semibold">A${audPrice}</span>
+              <span class="font-semibold">A\\$${audPrice}</span>
             </div>
             <div class="flex justify-between text-sm mt-1">
               <span>Landed Cost (with ${state.currentVisit?.agentCommission || state.settings.defaultAgentCommission}% commission):</span>
@@ -818,12 +172,48 @@
                 <div class="text-sm text-gray-600">RMB</div>
               </div>
               <div class="text-right">
-                <div class="text-lg font-bold text-green-700">A${totalAUD}</div>
+                <div class="text-lg font-bold text-green-700">A\\$${totalAUD}</div>
                 <div class="text-sm text-gray-600">AUD</div>
               </div>
             </div>
           `;
         }
+      }
+    }
+
+    function saveProduct(addNext) {
+      const factoryPrice = document.getElementById('factoryPrice').value;
+      
+      if (!state.formData.photo || !factoryPrice) {
+        return alert('Please fill in photo and factory price');
+      }
+      
+      const item = {
+        id: Date.now(),
+        visitId: state.currentVisit.id,
+        photo: state.formData.photo,
+        category: document.getElementById('category')?.value || '',
+        modelNumber: document.getElementById('modelNumber')?.value || '',
+        color: document.getElementById('color')?.value || '',
+        material: document.getElementById('material')?.value || '',
+        factoryPrice: parseFloat(factoryPrice),
+        moq: parseInt(document.getElementById('moq').value) || 1,
+        description: document.getElementById('description').value,
+        status: 'review',
+        timestamp: new Date().toISOString()
+      };
+      
+      state.items.push(item);
+      saveState();
+      
+      if (addNext) {
+        state.formData = { photo: null, factoryPrice: '', moq: '1', description: '', modelNumber: '', color: '', material: '', category: '' };
+        render();
+        setTimeout(() => document.getElementById('productPhoto').click(), 100);
+      } else {
+        state.formData = { photo: null, factoryPrice: '', moq: '1', description: '', modelNumber: '', color: '', material: '', category: '' };
+        state.view = 'visitDetail';
+        render();
       }
     }
 
@@ -869,60 +259,6 @@
       render();
     }
 
-    function toggleNegotiation() {
-      document.getElementById('negotiationPhoto').click();
-    }
-
-    async function handleNegotiationPhoto(e) {
-      const file = e.target.files[0];
-      if (file) {
-        state.negotiationPhoto = await compressImage(file, 800, 0.7);
-        render();
-      }
-    }
-
-    function removeNegotiation() {
-      state.negotiationPhoto = null;
-      state.negotiationNotes = '';
-      render();
-    }
-
-    function saveProduct(addNext) {
-      const factoryPrice = document.getElementById('factoryPrice').value;
-      
-      if (!state.formData.photo || !factoryPrice) {
-        return alert('Please fill in photo and factory price');
-      }
-      
-      const item = {
-        id: Date.now(),
-        visitId: state.currentVisit.id,
-        photo: state.formData.photo,
-        category: document.getElementById('category')?.value || '',
-        modelNumber: document.getElementById('modelNumber')?.value || '',
-        color: document.getElementById('color')?.value || '',
-        material: document.getElementById('material')?.value || '',
-        factoryPrice: parseFloat(factoryPrice),
-        moq: parseInt(document.getElementById('moq').value) || 1,
-        description: document.getElementById('description').value,
-        status: 'review',
-        timestamp: new Date().toISOString()
-      };
-      
-      state.items.push(item);
-      saveState();
-      
-      if (addNext) {
-        state.formData = { photo: null, factoryPrice: '', moq: '1', description: '', modelNumber: '', color: '', material: '', category: '' };
-        render();
-        setTimeout(() => document.getElementById('productPhoto').click(), 100);
-      } else {
-        state.formData = { photo: null, factoryPrice: '', moq: '1', description: '', modelNumber: '', color: '', material: '', category: '' };
-        state.view = 'visitDetail';
-        render();
-      }
-    }
-
     function toggleShortlist(id) {
       const item = state.items.find(i => i.id === id);
       item.status = item.status === 'shortlist' ? 'review' : 'shortlist';
@@ -942,95 +278,6 @@
       }
     }
 
-    function reviewShortlist() {
-      state.view = 'reviewPO';
-      render();
-    }
-
-    function sendPO() {
-      const shortlisted = state.items.filter(i => i.visitId === state.currentVisit.id && i.status === 'shortlist');
-      
-      if (shortlisted.length === 0) {
-        alert('No items shortlisted. Please shortlist items first.');
-        return;
-      }
-      
-      if (!state.settings.agentEmail) {
-        alert('Please set agent email in Settings first.');
-        return;
-      }
-      
-      const totalRMB = shortlisted.reduce((sum, i) => sum + (i.factoryPrice * (i.moq || 1)), 0);
-      const commission = state.currentVisit.agentCommission || state.settings.defaultAgentCommission;
-      const commissionAmount = totalRMB * (commission / 100);
-      const grandTotal = totalRMB + commissionAmount;
-      
-      const itemsList = shortlisted.map((item, index) => {
-        const itemTotal = item.factoryPrice * (item.moq || 1);
-        return `${index + 1}. Price: ¥${item.factoryPrice.toFixed(2)} × MOQ: ${item.moq} = ¥${itemTotal.toFixed(2)} (A${convertToAUD(itemTotal)})
-   ${item.description ? 'Notes: ' + item.description : ''}`;
-      }).join('\n\n');
-      
-      const body = `PURCHASE ORDER REQUEST
-
-══════════════════════════════════════
-SUPPLIER INFORMATION
-══════════════════════════════════════
-Company: ${state.currentVisit.name}
-${state.currentVisit.tradeFair ? 'Trade Fair: ' + state.currentVisit.tradeFair : ''}
-Booth Number: ${state.currentVisit.boothNumber}
-Contact Person: ${state.currentVisit.contact || 'N/A'}
-Phone: ${state.currentVisit.phone || 'N/A'}
-WeChat: ${state.currentVisit.wechat || 'N/A'}
-Email: ${state.currentVisit.email || 'N/A'}
-Address: ${state.currentVisit.address || 'N/A'}
-
-══════════════════════════════════════
-ORDER DETAILS
-══════════════════════════════════════
-Total Items: ${shortlisted.length}
-
-${itemsList}
-
-══════════════════════════════════════
-FINANCIAL SUMMARY
-══════════════════════════════════════
-Subtotal (Products):        ¥${totalRMB.toFixed(2)} (A${convertToAUD(totalRMB)})
-Agent Commission (${commission}%):    ¥${commissionAmount.toFixed(2)} (A${convertToAUD(commissionAmount)})
-────────────────────────────────────
-GRAND TOTAL:                ¥${grandTotal.toFixed(2)} (A${convertToAUD(grandTotal)})
-
-══════════════════════════════════════
-AGENT INFORMATION
-══════════════════════════════════════
-Agent: ${state.settings.agentName}
-Email: ${state.settings.agentEmail}
-WeChat: ${state.settings.agentWechat}
-Phone: ${state.settings.agentPhone}
-
-══════════════════════════════════════
-
-Exchange Rate: ¥${state.settings.exchangeRate} = A$1.00
-Generated: ${new Date().toLocaleString()}
-
-Please process this order and confirm timeline.`;
-      
-      // Send to agent with supplier CC'd
-      const mailto = `mailto:${state.settings.agentEmail}?cc=${state.currentVisit.email || ''}&subject=PO Request - ${state.currentVisit.name} - ${shortlisted.length} Items&body=${encodeURIComponent(body)}`;
-      window.location.href = mailto;
-      
-      // Mark as sent
-      if (confirm('Email opened. Mark this order as sent?')) {
-        shortlisted.forEach(item => {
-          item.status = 'sent';
-          item.sentDate = new Date().toISOString();
-        });
-        saveState();
-        state.view = 'visitDetail';
-        render();
-      }
-    }
-
     function deleteItem(id) {
       if (confirm('Delete this item?')) {
         state.items = state.items.filter(i => i.id !== id);
@@ -1039,186 +286,19 @@ Please process this order and confirm timeline.`;
       }
     }
 
-    function sendEmail() {
-      // Legacy function - redirects to new PO system
-      reviewShortlist();
+    function toggleNegotiation() {
+      document.getElementById('negotiationPhoto').click();
     }
 
-    function exportForWeChat() {
-      const shortlisted = state.items.filter(i => i.visitId === state.currentVisit.id && i.status === 'shortlist');
-      
-      if (shortlisted.length === 0) {
-        alert('No items shortlisted. Please shortlist items first.');
-        return;
-      }
-      
-      const totalRMB = shortlisted.reduce((sum, i) => sum + (i.factoryPrice * (i.moq || 1)), 0);
-      const commission = state.currentVisit?.agentCommission || state.settings.defaultAgentCommission;
-      const commissionAmount = totalRMB * (commission / 100);
-      const grandTotal = totalRMB + commissionAmount;
-      
-      // Create PO text for WeChat
-      const poText = `📋 PURCHASE ORDER REQUEST
-
-━━━━━━━━━━━━━━━━━━━━━━
-🏢 SUPPLIER
-━━━━━━━━━━━━━━━━━━━━━━
-${state.currentVisit.name}
-📱 ${state.currentVisit.wechat || 'N/A'}
-📧 ${state.currentVisit.email || 'N/A'}
-📍 ${state.currentVisit.address || 'N/A'}
-
-━━━━━━━━━━━━━━━━━━━━━━
-🛍️ ORDER (${shortlisted.length} items)
-━━━━━━━━━━━━━━━━━━━━━━
-${shortlisted.map((item, idx) => {
-  const total = item.factoryPrice * (item.moq || 1);
-  return `${idx + 1}. ¥${item.factoryPrice.toFixed(2)} × ${item.moq} = ¥${total.toFixed(2)} (A\${convertToAUD(total)})
-${item.description ? '   📝 ' + item.description : ''}`;
-}).join('\n\n')}
-
-━━━━━━━━━━━━━━━━━━━━━━
-💰 SUMMARY
-━━━━━━━━━━━━━━━━━━━━━━
-Subtotal: ¥${totalRMB.toFixed(2)}
-Commission (${commission}%): ¥${commissionAmount.toFixed(2)}
-──────────────────────
-TOTAL: ¥${grandTotal.toFixed(2)}
-       A\${convertToAUD(grandTotal)}
-
-━━━━━━━━━━━━━━━━━━━━━━
-👤 AGENT
-━━━━━━━━━━━━━━━━━━━━━━
-${state.settings.agentName}
-📧 ${state.settings.agentEmail}
-📱 ${state.settings.agentWechat}
-☎️ ${state.settings.agentPhone}
-
-━━━━━━━━━━━━━━━━━━━━━━
-Exchange: ¥${state.settings.exchangeRate} = A\$1
-Generated: ${new Date().toLocaleString()}
-
-📸 ${shortlisted.length} product photos will be sent separately`;
-
-      // Create a package with PO text and prepare images
-      const exportPackage = {
-        poText: poText,
-        images: shortlisted.map((item, idx) => ({
-          id: idx + 1,
-          photo: item.photo,
-          modelNumber: item.modelNumber,
-          price: item.factoryPrice,
-          moq: item.moq,
-          color: item.color,
-          material: item.material,
-          description: item.description
-        })),
-        negotiation: state.negotiationPhoto ? {
-          photo: state.negotiationPhoto,
-          notes: state.negotiationNotes
-        } : null,
-        supplier: state.currentVisit,
-        date: new Date().toISOString()
-      };
-
-      // Save to localStorage for retrieval
-      localStorage.setItem('wechat_export', JSON.stringify(exportPackage));
-      
-      // Show instructions
-      state.view = 'wechatExport';
+    function removeNegotiation() {
+      state.negotiationPhoto = null;
+      state.negotiationNotes = '';
       render();
     }
 
-    function copyPOText() {
-      const exportData = JSON.parse(localStorage.getItem('wechat_export'));
-      if (!exportData) return;
-      
-      // Copy to clipboard
-      navigator.clipboard.writeText(exportData.poText).then(() => {
-        alert('✓ PO text copied to clipboard!\n\nNow:\n1. Open WeChat\n2. Paste the text\n3. Return here to get photos');
-      }).catch(() => {
-        // Fallback for older browsers
-        const textarea = document.createElement('textarea');
-        textarea.value = exportData.poText;
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textarea);
-        alert('✓ PO text copied!\n\nPaste into WeChat, then return for photos.');
-      });
-    }
-
-    function downloadImage(index) {
-      const exportData = JSON.parse(localStorage.getItem('wechat_export'));
-      if (!exportData || !exportData.images[index]) return;
-      
-      const img = exportData.images[index];
-      const link = document.createElement('a');
-      link.href = img.photo;
-      link.download = `product-${index + 1}-${Date.now()}.jpg`;
-      link.click();
-      
-      alert(`Photo ${index + 1} downloaded!\n\nLong-press the downloaded image and select "Share to WeChat"`);
-    }
-
-    function downloadAllImages() {
-      const exportData = JSON.parse(localStorage.getItem('wechat_export'));
-      if (!exportData) return;
-      
-      exportData.images.forEach((img, idx) => {
-        setTimeout(() => {
-          const link = document.createElement('a');
-          link.href = img.photo;
-          link.download = `product-${idx + 1}-${Date.now()}.jpg`;
-          link.click();
-        }, idx * 500); // Stagger downloads
-      });
-      
-      alert(`Downloading ${exportData.images.length} photos...\n\nAfter download:\n1. Go to Downloads folder\n2. Select all photos\n3. Share to WeChat`);
-    }
-
-    function downloadNegotiation() {
-      const exportData = JSON.parse(localStorage.getItem('wechat_export'));
-      if (!exportData || !exportData.negotiation) return;
-      
-      const link = document.createElement('a');
-      link.href = exportData.negotiation.photo;
-      link.download = `negotiation-${Date.now()}.jpg`;
-      link.click();
-      
-      alert('Negotiation photo downloaded!\n\nShare to WeChat with notes:\n' + exportData.negotiation.notes);
-    }
-      const data = { visits: state.visits, items: state.items, settings: state.settings, exportDate: new Date().toISOString() };
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `sourcing-backup-${new Date().toISOString().split('T')[0]}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-    }
-
-    function importData(e) {
-      const file = e.target.files[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onload = ev => {
-          try {
-            const data = JSON.parse(ev.target.result);
-            if (data.visits && data.items) {
-              state.visits = data.visits;
-              state.items = data.items;
-              if (data.settings) state.settings = data.settings;
-              saveState();
-              render();
-              alert('Data imported!');
-            }
-          } catch (err) {
-            alert('Error importing data');
-          }
-        };
-        reader.readAsText(file);
-      }
+    function reviewShortlist() {
+      state.view = 'reviewPO';
+      render();
     }
 
     function clearOldData() {
@@ -1245,7 +325,376 @@ Generated: ${new Date().toLocaleString()}
       render();
     }
 
-    render();
-  </script>
-</body>
-</html>
+    function addCategory() {
+      const newCat = document.getElementById('newCategory').value.trim();
+      if (newCat && !state.settings.categories.includes(newCat)) {
+        state.settings.categories.push(newCat);
+        state.settings.categories.sort();
+        saveState();
+        document.getElementById('newCategory').value = '';
+        render();
+      }
+    }
+
+    function removeCategory(index) {
+      if (confirm('Remove this category? Items will keep their category tag.')) {
+        state.settings.categories.splice(index, 1);
+        saveState();
+        render();
+      }
+    }
+
+    function changeView(view) {
+      state.view = view;
+      render();
+    }
+
+    function changeHomeTab(tab) {
+      state.homeTab = tab;
+      render();
+    }
+
+    function openVisit(id) {
+      state.currentVisit = state.visits.find(v => v.id === id);
+      state.view = 'visitDetail';
+      render();
+    }
+
+    function filterByCategory(category) {
+      state.selectedCategory = category;
+      render();
+    }
+
+    function exportForWeChat() {
+      const shortlisted = state.items.filter(i => i.visitId === state.currentVisit.id && i.status === 'shortlist');
+      
+      if (shortlisted.length === 0) {
+        alert('No items shortlisted. Please shortlist items first.');
+        return;
+      }
+      
+      const totalRMB = shortlisted.reduce((sum, i) => sum + (i.factoryPrice * (i.moq || 1)), 0);
+      const commission = state.currentVisit?.agentCommission || state.settings.defaultAgentCommission;
+      const commissionAmount = totalRMB * (commission / 100);
+      const grandTotal = totalRMB + commissionAmount;
+      
+      const poText = `📋 PURCHASE ORDER REQUEST
+
+━━━━━━━━━━━━━━━━━━━━━━
+🏢 SUPPLIER
+━━━━━━━━━━━━━━━━━━━━━━
+${state.currentVisit.name}
+${state.currentVisit.tradeFair ? '🎪 ' + state.currentVisit.tradeFair : ''}
+📍 Booth: ${state.currentVisit.boothNumber}
+👤 ${state.currentVisit.contact || 'N/A'}
+☎️ ${state.currentVisit.phone || 'N/A'}
+📱 ${state.currentVisit.wechat || 'N/A'}
+📧 ${state.currentVisit.email || 'N/A'}
+🏭 ${state.currentVisit.address || 'N/A'}
+
+━━━━━━━━━━━━━━━━━━━━━━
+🛍️ ORDER (${shortlisted.length} items)
+━━━━━━━━━━━━━━━━━━━━━━
+${shortlisted.map((item, idx) => {
+  const total = item.factoryPrice * (item.moq || 1);
+  let itemText = `${idx + 1}. ¥${item.factoryPrice.toFixed(2)} × ${item.moq} = ¥${total.toFixed(2)} (A\\$${convertToAUD(total)})`;
+  if (item.modelNumber) itemText += `\\n   🏷️ Model: ${item.modelNumber}`;
+  if (item.color) itemText += `\\n   🎨 Color: ${item.color}`;
+  if (item.material) itemText += `\\n   📦 Material: ${item.material}`;
+  if (item.description) itemText += `\\n   📝 ${item.description}`;
+  return itemText;
+}).join('\\n\\n')}
+
+━━━━━━━━━━━━━━━━━━━━━━
+💰 SUMMARY
+━━━━━━━━━━━━━━━━━━━━━━
+Subtotal: ¥${totalRMB.toFixed(2)}
+Commission (${commission}%): ¥${commissionAmount.toFixed(2)}
+──────────────────────
+TOTAL: ¥${grandTotal.toFixed(2)}
+       A\\$${convertToAUD(grandTotal)}
+
+━━━━━━━━━━━━━━━━━━━━━━
+👤 AGENT
+━━━━━━━━━━━━━━━━━━━━━━
+${state.settings.agentName}
+📧 ${state.settings.agentEmail}
+📱 ${state.settings.agentWechat}
+☎️ ${state.settings.agentPhone}
+
+━━━━━━━━━━━━━━━━━━━━━━
+Exchange: ¥${state.settings.exchangeRate} = A\\$1
+Generated: ${new Date().toLocaleString()}
+
+📸 ${shortlisted.length} product photos will be sent separately`;
+
+      const exportPackage = {
+        poText: poText,
+        images: shortlisted.map((item, idx) => ({
+          id: idx + 1,
+          photo: item.photo,
+          modelNumber: item.modelNumber,
+          price: item.factoryPrice,
+          moq: item.moq,
+          color: item.color,
+          material: item.material,
+          description: item.description
+        })),
+        negotiation: state.negotiationPhoto ? {
+          photo: state.negotiationPhoto,
+          notes: state.negotiationNotes
+        } : null,
+        supplier: state.currentVisit,
+        date: new Date().toISOString()
+      };
+
+      localStorage.setItem('wechat_export', JSON.stringify(exportPackage));
+      state.view = 'wechatExport';
+      render();
+    }
+
+    function copyPOText() {
+      const exportData = JSON.parse(localStorage.getItem('wechat_export'));
+      if (!exportData) return;
+      
+      navigator.clipboard.writeText(exportData.poText).then(() => {
+        alert('✓ PO text copied to clipboard!\\n\\nNow:\\n1. Open WeChat\\n2. Paste the text\\n3. Return here to get photos');
+      }).catch(() => {
+        const textarea = document.createElement('textarea');
+        textarea.value = exportData.poText;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        alert('✓ PO text copied!\\n\\nPaste into WeChat, then return for photos.');
+      });
+    }
+
+    function downloadImage(index) {
+      const exportData = JSON.parse(localStorage.getItem('wechat_export'));
+      if (!exportData || !exportData.images[index]) return;
+      
+      const img = exportData.images[index];
+      const link = document.createElement('a');
+      link.href = img.photo;
+      link.download = `product-${index + 1}-${Date.now()}.jpg`;
+      link.click();
+      
+      alert(`Photo ${index + 1} downloaded!\\n\\nLong-press the downloaded image and select "Share to WeChat"`);
+    }
+
+    function downloadAllImages() {
+      const exportData = JSON.parse(localStorage.getItem('wechat_export'));
+      if (!exportData) return;
+      
+      exportData.images.forEach((img, idx) => {
+        setTimeout(() => {
+          const link = document.createElement('a');
+          link.href = img.photo;
+          link.download = `product-${idx + 1}-${Date.now()}.jpg`;
+          link.click();
+        }, idx * 500);
+      });
+      
+      alert(`Downloading ${exportData.images.length} photos...\\n\\nAfter download:\\n1. Go to Downloads folder\\n2. Select all photos\\n3. Share to WeChat`);
+    }
+
+    function downloadNegotiation() {
+      const exportData = JSON.parse(localStorage.getItem('wechat_export'));
+      if (!exportData || !exportData.negotiation) return;
+      
+      const link = document.createElement('a');
+      link.href = exportData.negotiation.photo;
+      link.download = `negotiation-${Date.now()}.jpg`;
+      link.click();
+      
+      alert('Negotiation photo downloaded!\\n\\nShare to WeChat with notes:\\n' + exportData.negotiation.notes);
+    }
+
+    function finishWeChatExport() {
+      if (confirm('Mark items as sent to agent?')) {
+        state.items.forEach(item => {
+          if (item.visitId === state.currentVisit.id && item.status === 'shortlist') {
+            item.status = 'sent';
+            item.sentDate = new Date().toISOString();
+          }
+        });
+        saveState();
+        localStorage.removeItem('wechat_export');
+        state.negotiationPhoto = null;
+        state.negotiationNotes = '';
+      }
+      state.view = 'visitDetail';
+      render();
+    }
+
+    function sendPO() {
+      const shortlisted = state.items.filter(i => i.visitId === state.currentVisit.id && i.status === 'shortlist');
+      
+      if (shortlisted.length === 0) {
+        alert('No items shortlisted. Please shortlist items first.');
+        return;
+      }
+      
+      if (!state.settings.agentEmail) {
+        alert('Please set agent email in Settings first.');
+        return;
+      }
+      
+      const totalRMB = shortlisted.reduce((sum, i) => sum + (i.factoryPrice * (i.moq || 1)), 0);
+      const commission = state.currentVisit.agentCommission || state.settings.defaultAgentCommission;
+      const commissionAmount = totalRMB * (commission / 100);
+      const grandTotal = totalRMB + commissionAmount;
+      
+      const negotiationSection = state.negotiationPhoto ? `
+
+══════════════════════════════════════
+PRICE NEGOTIATION REQUEST
+══════════════════════════════════════
+A photo of price negotiation has been attached.
+${document.getElementById('negotiationNotes')?.value || 'Please review and provide best pricing.'}
+
+Note: Photo cannot be embedded in email. Please check attached files or see below for product details.
+` : '';
+      
+      const itemsList = shortlisted.map((item, index) => {
+        const itemTotal = item.factoryPrice * (item.moq || 1);
+        let itemText = `${index + 1}. Price: ¥${item.factoryPrice.toFixed(2)} × MOQ: ${item.moq} = ¥${itemTotal.toFixed(2)} (A\\$${convertToAUD(itemTotal)})`;
+        if (item.modelNumber) itemText += `\\n   Model/Code: ${item.modelNumber}`;
+        if (item.color) itemText += `\\n   Color: ${item.color}`;
+        if (item.material) itemText += `\\n   Material: ${item.material}`;
+        if (item.description) itemText += `\\n   Notes: ${item.description}`;
+        itemText += `\\n   Photo: [Product image ${index + 1} - please see attachments]`;
+        return itemText;
+      }).join('\\n\\n');
+      
+      const body = `PURCHASE ORDER REQUEST
+
+══════════════════════════════════════
+SUPPLIER INFORMATION
+══════════════════════════════════════
+Company: ${state.currentVisit.name}
+${state.currentVisit.tradeFair ? 'Trade Fair: ' + state.currentVisit.tradeFair : ''}
+Booth Number: ${state.currentVisit.boothNumber}
+Contact Person: ${state.currentVisit.contact || 'N/A'}
+Phone: ${state.currentVisit.phone || 'N/A'}
+WeChat: ${state.currentVisit.wechat || 'N/A'}
+Email: ${state.currentVisit.email || 'N/A'}
+Address: ${state.currentVisit.address || 'N/A'}
+
+══════════════════════════════════════
+ORDER DETAILS
+══════════════════════════════════════
+Total Items: ${shortlisted.length}
+
+IMPORTANT: ${shortlisted.length} product photos are referenced below.
+Please download product images separately as they cannot be embedded in this email.
+
+${itemsList}
+${negotiationSection}
+
+══════════════════════════════════════
+FINANCIAL SUMMARY
+══════════════════════════════════════
+Subtotal (Products):        ¥${totalRMB.toFixed(2)} (A\\$${convertToAUD(totalRMB)})
+Agent Commission (${commission}%):    ¥${commissionAmount.toFixed(2)} (A\\$${convertToAUD(commissionAmount)})
+────────────────────────────────────
+GRAND TOTAL:                ¥${grandTotal.toFixed(2)} (A\\$${convertToAUD(grandTotal)})
+
+══════════════════════════════════════
+AGENT INFORMATION
+══════════════════════════════════════
+Agent: ${state.settings.agentName}
+Email: ${state.settings.agentEmail}
+WeChat: ${state.settings.agentWechat}
+Phone: ${state.settings.agentPhone}
+
+══════════════════════════════════════
+
+Exchange Rate: ¥${state.settings.exchangeRate} = A\\$1.00
+Generated: ${new Date().toLocaleString()}
+
+ACTION REQUIRED:
+1. Review product photos (${shortlisted.length} images)
+2. ${state.negotiationPhoto ? 'Review negotiation request photo' : 'Confirm pricing'}
+3. Provide delivery timeline
+4. Send proforma invoice
+
+NEXT STEPS TO ATTACH PHOTOS:
+Unfortunately, email body cannot contain images. Please:
+- Save product photos from the app
+- Attach to a follow-up email, OR
+- Share via WeChat: ${state.settings.agentWechat}
+
+Product photos can be exported from the app using the Export function.`;
+      
+      const mailto = `mailto:${state.settings.agentEmail}?cc=${state.currentVisit.email || ''}&subject=PO Request - ${state.currentVisit.name} - ${shortlisted.length} Items&body=${encodeURIComponent(body)}`;
+      
+      alert(`⚠️ EMAIL PHOTO LIMITATION
+
+Email will open with all details, but PHOTOS CANNOT be embedded in email body.
+
+Please manually:
+1. Export product data (with photos)
+2. Send photos via WeChat to agent
+3. Or attach photos to a follow-up email
+
+Click OK to continue to email.`);
+      
+      window.location.href = mailto;
+      
+      if (confirm('Email opened. Mark this order as sent?')) {
+        shortlisted.forEach(item => {
+          item.status = 'sent';
+          item.sentDate = new Date().toISOString();
+        });
+        saveState();
+        state.negotiationPhoto = null;
+        state.negotiationNotes = '';
+        state.view = 'visitDetail';
+        render();
+      }
+    }
+
+    // Render functions for tabs
+    function renderRecentTab() {
+      const recentVisits = state.visits.slice().reverse().slice(0, 10);
+      return `
+        <div class="bg-white rounded-lg shadow p-4">
+          <div class="flex justify-between items-center mb-3">
+            <h2 class="text-lg font-bold">Recent Visits</h2>
+            <button onclick="clearOldData()" class="text-sm text-blue-600">🧹 Cleanup</button>
+          </div>
+          ${recentVisits.length === 0 ? 
+            '<p class="text-gray-500 text-center py-8">No suppliers yet!</p>' :
+            `<div class="space-y-2">
+              ${recentVisits.map(visit => {
+                const items = state.items.filter(i => i.visitId === visit.id);
+                const shortlisted = items.filter(i => i.status === 'shortlist').length;
+                return `
+                  <div onclick="openVisit(${visit.id})" class="border rounded-lg p-3 cursor-pointer active:bg-gray-50">
+                    <div class="flex justify-between">
+                      <div>
+                        <h3 class="font-semibold">${visit.name}</h3>
+                        ${visit.boothNumber ? `<p class="text-xs text-blue-600 font-semibold">📍 Booth ${visit.boothNumber}</p>` : ''}
+                        <p class="text-sm text-gray-600">${visit.wechat || visit.contact || ''}</p>
+                      </div>
+                      <div class="text-right">
+                        <div class="text-sm text-gray-500">${items.length} items</div>
+                        ${shortlisted > 0 ? `<div class="text-sm text-yellow-600">⭐ ${shortlisted}</div>` : ''}
+                      </div>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>`
+          }
+        </div>
+      `;
+    }
+
+    function renderSuppliersTab() {
+      const sortedVisits = state.visits.slice().sort((a, b) => a.name.localeCompare(b.name));
+      return `
+        <div class="bg-white rounded-lg shadow p-4">
+          <div class="flex justify-
